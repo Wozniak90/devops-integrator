@@ -2,7 +2,25 @@
 
 Standalone webová aplikace pro přehled Azure DevOps work itemů — bez nutnosti instalace, bez cloudu, vše běží lokálně.
 
-## Rychlý start
+## 🤖 Instalace přes AI asistenta (doporučeno)
+
+Chceš aby AI nainstaloval nástroj za tebe? Funguje s GitHub Copilot CLI, Claude Desktop a Cursor.
+
+**Krok 1** — Nastav MCP server (jednorázově):
+```bash
+npx @wozniak90/tools setup
+```
+
+**Krok 2** — Restartuj svého AI klienta.
+
+**Krok 3** — Řekni AI:
+> „Nainstaluj mi Wozniakův DevOps Integrator"
+
+AI se tě zeptá, kam chceš nástroj nainstalovat, a pak ho stáhne a nainstaluje za tebe.
+
+---
+
+## Rychlý start (manuálně)
 
 ### Windows
 Dvakrát klikni na `start.bat`
