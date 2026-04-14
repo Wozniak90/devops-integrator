@@ -1,3 +1,6 @@
 node_modules/
 data/devops-config.json
 data/devops-notes.json
+
+# Interní plánování (ne pro veřejnost)
+devops-viewer-standalone-app.md
