@@ -1,0 +1,1679 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DevOps Integrator</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:       #0f0f1a;
+    --surface:  #161625;
+    --surface2: #1e1e32;
+    --border:   #2a2a42;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --accent:   #4f46e5;
+    --accent2:  #6366f1;
+    --green:    #34d399;
+    --red:      #fc8181;
+    --orange:   #f6ad55;
+    --yellow:   #f6e05e;
+    --purple:   #a78bfa;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; font-size: 14px;
+  }
+
+  /* ── WIZARD ──────────────────────────────────────────────────────── */
+  #wizard {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 100vh; padding: 32px 16px;
+  }
+  .wz-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 14px; padding: 36px 40px; width: 520px; max-width: 100%;
+    box-shadow: 0 20px 60px rgba(0,0,0,.5);
+  }
+  .wz-logo { text-align: center; font-size: 2.4rem; margin-bottom: 6px; }
+  .wz-app-name {
+    text-align: center; font-size: 1.25rem; font-weight: 700;
+    color: var(--accent2); margin-bottom: 4px;
+  }
+  .wz-app-sub { text-align: center; color: var(--muted); font-size: 0.8rem; margin-bottom: 28px; }
+
+  .wz-step { display: none; }
+  .wz-step.active { display: block; }
+
+  .wz-step-label {
+    font-size: 0.68rem; font-weight: 700; letter-spacing: .08em;
+    text-transform: uppercase; color: var(--accent2); margin-bottom: 6px;
+  }
+  .wz-step h2 { font-size: 1.1rem; margin-bottom: 10px; }
+  .wz-step p  { color: var(--muted); font-size: 0.82rem; line-height: 1.6; margin-bottom: 16px; }
+
+  .wz-input-label { font-size: 0.78rem; color: var(--muted); margin-bottom: 5px; display: block; }
+  .wz-input {
+    width: 100%; padding: 9px 12px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 7px;
+    color: var(--text); font-size: 0.88rem; outline: none;
+    transition: border-color .15s;
+  }
+  .wz-input:focus { border-color: var(--accent); }
+  .wz-input-group { margin-bottom: 16px; }
+
+  .wz-btn {
+    padding: 9px 22px; border-radius: 7px; border: none; cursor: pointer;
+    font-size: 0.85rem; font-weight: 600; transition: opacity .15s;
+  }
+  .wz-btn:hover { opacity: .85; }
+  .wz-btn-primary { background: var(--accent); color: #fff; }
+  .wz-btn-ghost   { background: var(--surface2); color: var(--muted); }
+  .wz-btn-danger  { background: #7f1d1d; color: #fca5a5; }
+  .wz-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  .wz-check { display: flex; align-items: center; gap: 10px; padding: 10px 14px;
+    background: var(--surface2); border-radius: 8px; margin-bottom: 10px; }
+  .wz-check-icon { font-size: 1.2rem; }
+  .wz-check-label { font-size: 0.82rem; }
+  .wz-check-val   { font-size: 0.78rem; color: var(--green); margin-left: auto; }
+  .wz-check-err   { font-size: 0.78rem; color: var(--red); margin-left: auto; }
+
+  .wz-error {
+    background: rgba(252,129,129,.1); border: 1px solid rgba(252,129,129,.3);
+    border-radius: 7px; padding: 10px 14px; font-size: 0.8rem; color: var(--red);
+    margin-top: 12px; display: none;
+  }
+  .wz-error.show { display: block; }
+  .wz-success {
+    background: rgba(52,211,153,.1); border: 1px solid rgba(52,211,153,.3);
+    border-radius: 7px; padding: 10px 14px; font-size: 0.8rem; color: var(--green);
+    margin-top: 12px; display: none;
+  }
+  .wz-success.show { display: block; }
+
+  .wz-progress { display: flex; gap: 6px; justify-content: center; margin-bottom: 28px; }
+  .wz-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--border); transition: background .2s;
+  }
+  .wz-dot.done   { background: var(--green); }
+  .wz-dot.active { background: var(--accent2); }
+
+  .proj-list { display: flex; flex-direction: column; gap: 8px; max-height: 240px; overflow-y: auto; }
+  .proj-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 8px;
+    cursor: pointer; transition: border-color .15s;
+  }
+  .proj-item.selected { border-color: var(--accent2); }
+  .proj-item input[type=checkbox] { accent-color: var(--accent2); width: 16px; height: 16px; }
+  .proj-name { flex: 1; font-size: 0.85rem; }
+  .proj-label-input {
+    width: 70px; padding: 4px 8px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 5px;
+    color: var(--text); font-size: 0.75rem; text-align: center;
+  }
+  .proj-color-input { width: 32px; height: 28px; padding: 2px; border-radius: 5px; border: 1px solid var(--border); cursor: pointer; }
+
+  /* ── MAIN APP ─────────────────────────────────────────────────────── */
+  #app { display: none; }
+
+  .app-header {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 12px 20px; display: flex; align-items: center; gap: 12px;
+    position: sticky; top: 0; z-index: 100;
+  }
+  .app-header-title { font-size: 1rem; font-weight: 700; color: var(--accent2); flex: 1; }
+  .app-header-meta  { font-size: 0.72rem; color: var(--muted); }
+  .app-header-btn {
+    padding: 5px 12px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--muted); cursor: pointer;
+    font-size: 0.75rem; transition: color .15s;
+  }
+  .app-header-btn:hover { color: var(--text); }
+
+  .app-body { padding: 16px 20px; max-width: 1600px; margin: 0 auto; }
+
+  /* ── DevOps widget styles (same as dashboard) ─────────────────────── */
+  .dv-section-hdr {
+    padding: 7px 14px; font-size: 0.72rem; font-weight: 700;
+    text-transform: uppercase; letter-spacing: .06em;
+    background: var(--surface2); border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border); color: var(--muted);
+  }
+  .dv-section-sep { height: 0; border-top: 2px solid #4f46e5; margin: 10px 0 0; }
+  .dv-grid   { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0; border-bottom: 1px solid var(--border); }
+  .dv-grid-1 { grid-template-columns: 1fr; }
+  .dv-grid-2 { grid-template-columns: repeat(2, 1fr); }
+  .dv-grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .dv-grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .dv-grid-auto2 { grid-template-columns: repeat(auto-fill, minmax(480px, 1fr)); }
+  .dv-grid-auto4 { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+
+  /* Section containers — collapse + drag */
+  .dv-sec { transition: opacity .15s; }
+  .dv-sec-dragging { opacity: .4; }
+  .dv-sec-over { outline: 2px dashed #4f46e5; outline-offset: -2px; }
+  .dv-section-hdr-drag {
+    display: flex; align-items: center; gap: 8px; cursor: default;
+  }
+  .dv-drag-handle {
+    color: var(--muted); cursor: grab; font-size: 1rem; user-select: none;
+    padding: 0 2px; flex-shrink: 0;
+  }
+  .dv-drag-handle:active { cursor: grabbing; }
+  .dv-sec-title { flex: 1; }
+  .dv-collapse-btn {
+    background: none; border: none; color: var(--muted); cursor: pointer;
+    font-size: 0.75rem; padding: 0 4px; line-height: 1; flex-shrink: 0;
+  }
+  .dv-collapse-btn:hover { color: var(--text); }
+
+  /* Layout selector bar */
+  .dv-layout-bar {
+    display: flex; align-items: center; gap: 5px;
+    padding: 5px 10px; background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+  }
+  .dv-layout-bar-label { color: var(--muted); font-size: 0.65rem; margin-right: 4px; }
+  .dv-layout-btn {
+    padding: 2px 9px; border-radius: 4px; border: 1px solid var(--border);
+    background: var(--surface); color: var(--muted); font-size: 0.68rem;
+    cursor: pointer; transition: all .12s;
+  }
+  .dv-layout-btn:hover { border-color: #4f46e5; color: var(--text); }
+  .dv-layout-btn.active { background: #4f46e5; color: #fff; border-color: #4f46e5; }
+  .dv-col    { border-right: 1px solid var(--border); }
+  .dv-col:last-child { border-right: none; }
+  .dv-area-hdr {
+    font-size: 0.7rem; font-weight: 600; color: #818cf8;
+    padding: 5px 12px 3px; background: var(--surface2);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .dv-area-count {
+    background: #312e81; color: #a5b4fc; border-radius: 10px;
+    padding: 0 6px; font-size: 0.65rem; font-weight: 700;
+  }
+  .dv-item {
+    display: flex; gap: 8px; align-items: flex-start;
+    padding: 7px 12px; border-bottom: 1px solid var(--border);
+    transition: background .12s;
+  }
+  .dv-item:hover { background: var(--surface2); }
+  .dv-item-icon  { font-size: 0.9rem; padding-top: 1px; flex-shrink: 0; }
+  .dv-item-body  { flex: 1; min-width: 0; }
+  .dv-item-title {
+    display: block; color: var(--text); text-decoration: none;
+    font-size: 0.8rem; line-height: 1.35; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  .dv-item-title:hover { color: var(--accent2); }
+  .dv-item-meta  { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; align-items: center; }
+  .dv-item-id    { color: var(--muted); font-size: 0.65rem; }
+  .dv-badge      { font-size: 0.62rem; padding: 1px 6px; border-radius: 10px; border: 1px solid; font-weight: 600; }
+  .dv-state-new      { background:#2d3748; color:#a0aec0; border-color:#4a5568; }
+  .dv-state-active   { background:#1e3a5f; color:#63b3ed; border-color:#2c5282; }
+  .dv-state-resolved { background:#1a3a2a; color:#68d391; border-color:#276749; }
+  .dv-state-other    { background:#2d2a1a; color:#f6c90e; border-color:#4a3f1a; }
+  .dv-prio-1 { color:#fc8181; font-weight:700; font-size:0.68rem; }
+  .dv-prio-2 { color:#f6ad55; font-weight:700; font-size:0.68rem; }
+  .dv-prio-3 { color:#f6e05e; font-size:0.68rem; }
+  .dv-prio-4 { color:var(--muted); font-size:0.68rem; }
+  .dv-proj-badge {
+    font-size: 0.6rem; padding: 1px 6px; border-radius: 10px;
+    color: #fff; font-weight: 700;
+  }
+  .dv-sprint  { color: var(--muted); font-size: 0.68rem; }
+  .dv-changed { color: #a78bfa; font-size: 0.68rem; }
+  .dv-empty   { padding: 14px; color: var(--muted); font-size: 0.8rem; text-align: center; }
+
+  /* Tooltip */
+  #dv-tip {
+    position: fixed; z-index: 9999; max-width: 380px; pointer-events: none;
+    background: #1e1e2e; border: 1px solid #4f46e5; border-radius: 8px;
+    padding: 10px 13px; box-shadow: 0 8px 24px rgba(0,0,0,.6);
+    font-size: 0.75rem; line-height: 1.5; display: none;
+  }
+  .tip-label  { font-size: 0.65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+  .tip-mine   .tip-label  { color: #a78bfa; }
+  .tip-latest .tip-label  { color: #f6ad55; }
+  .tip-note   .tip-label  { color: #34d399; }
+  .tip-text   { color: #e2e8f0; }
+  .tip-meta   { color: var(--muted); font-size: 0.65rem; margin-top: 2px; }
+  .tip-sep    { border: none; border-top: 1px solid #333; margin: 7px 0; }
+
+  /* Note modal */
+  #note-overlay {
+    display: none; position: fixed; inset: 0; z-index: 10000;
+    background: rgba(0,0,0,.55); align-items: center; justify-content: center;
+  }
+  #note-overlay.open { display: flex; }
+  #note-box {
+    background: #1e1e2e; border: 1px solid #4f46e5; border-radius: 10px;
+    padding: 18px 20px; width: 420px; max-width: 95vw;
+    box-shadow: 0 12px 40px rgba(0,0,0,.7);
+  }
+  #note-box h4 { margin: 0 0 10px; font-size: 0.85rem; color: #e2e8f0; }
+  #note-box h4 span { color: var(--muted); font-weight: 400; }
+  #note-ta {
+    width: 100%; height: 110px; resize: vertical;
+    background: #13131f; border: 1px solid #333; border-radius: 6px;
+    color: #e2e8f0; font-size: 0.8rem; padding: 8px 10px; font-family: inherit;
+  }
+  #note-ta:focus { outline: none; border-color: #4f46e5; }
+  .note-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
+  .note-actions button {
+    padding: 5px 14px; border-radius: 5px; border: none; cursor: pointer;
+    font-size: 0.78rem; font-weight: 600;
+  }
+  .note-save   { background: #4f46e5; color: #fff; }
+  .note-delete { background: #7f1d1d; color: #fca5a5; }
+  .note-cancel { background: #2d3748; color: #a0aec0; }
+
+  .spin { animation: spin .7s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ══ Wiki section ══════════════════════════════════════════════════════════ */
+  .wiki-section { margin-top: 20px; }
+  .wiki-section-hdr {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px; background: #1a1a2e; border-radius: 8px 8px 0 0;
+    border: 1px solid #2d2d4a; border-bottom: none; cursor: pointer;
+    font-size: 0.82rem; font-weight: 700; color: #e2e8f0;
+  }
+  .wiki-section-hdr:hover { background: #20203a; }
+  .wiki-section-body { border: 1px solid #2d2d4a; border-radius: 0 0 8px 8px; background: #13131f; }
+  .wiki-search-wrap { padding: 8px 12px 6px; }
+  .wiki-search {
+    width: 100%; box-sizing: border-box; padding: 5px 10px;
+    background: #1a1a2e; border: 1px solid #2d2d4a; border-radius: 6px;
+    color: #e2e8f0; font-size: 0.75rem; outline: none;
+  }
+  .wiki-search:focus { border-color: #818cf8; }
+  .wiki-controls { display: flex; gap: 6px; padding: 4px 12px 8px; align-items: center; flex-wrap: wrap; }
+  .wiki-filter-btn {
+    font-size: 0.65rem; padding: 2px 8px; border-radius: 4px;
+    border: 1px solid #2d2d4a; cursor: pointer; font-weight: 600;
+    background: #1a1a2e; color: #a0aec0; transition: background .15s;
+  }
+  .wiki-filter-btn.active { background: #818cf8; color: #fff; border-color: #818cf8; }
+  .wiki-filter-btn:hover:not(.active) { background: #20203a; }
+  .wiki-ctrl-btn {
+    font-size: 0.65rem; padding: 2px 7px; border-radius: 4px;
+    border: 1px solid #2d2d4a; cursor: pointer;
+    background: #1a1a2e; color: #a0aec0;
+  }
+  .wiki-ctrl-btn:hover { background: #20203a; color: #e2e8f0; }
+  .wiki-refresh-btn {
+    margin-left: auto; font-size: 0.65rem; padding: 2px 8px; border-radius: 4px;
+    border: 1px solid #2d2d4a; cursor: pointer;
+    background: #1a1a2e; color: #a0aec0;
+  }
+  .wiki-refresh-btn:hover { background: #20203a; color: #e2e8f0; }
+  /* Tree */
+  .wiki-proj-block { padding: 4px 0 8px; border-bottom: 1px solid #1a1a2e; }
+  .wiki-proj-block:last-child { border-bottom: none; }
+  .wiki-proj-hdr {
+    display: flex; align-items: center; gap: 7px; padding: 6px 14px;
+    cursor: pointer; user-select: none;
+  }
+  .wiki-proj-hdr:hover { background: #1a1a2e; }
+  .wiki-proj-chevron { font-size: 0.65rem; color: #a0aec0; transition: transform .15s; }
+  .wiki-proj-chevron.open { transform: rotate(90deg); }
+  .wiki-proj-label { font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 3px; color: #fff; }
+  .wiki-proj-name { font-size: 0.78rem; font-weight: 600; color: #e2e8f0; }
+  .wiki-proj-count { font-size: 0.65rem; color: #a0aec0; margin-left: auto; }
+  .wiki-tree { display: none; }
+  .wiki-tree.open { display: block; }
+  .wiki-node { display: flex; align-items: center; gap: 4px; padding: 1px 0; }
+  .wiki-node-toggle { font-size: 0.55rem; color: #a0aec0; cursor: pointer; width: 14px; text-align: center; flex-shrink: 0; user-select: none; }
+  .wiki-node-toggle:hover { color: #818cf8; }
+  .wiki-node-title {
+    font-size: 0.76rem; color: #cbd5e0; text-decoration: none;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    flex: 1; padding: 2px 4px; border-radius: 3px;
+  }
+  a.wiki-node-title:hover { color: #818cf8; background: #1a1a2e; }
+  .wiki-folder-title { color: #a0aec0; cursor: pointer; user-select: none; }
+  .wiki-folder-title:hover { color: #e2e8f0; background: #1a1a2e; border-radius: 3px; }
+  .wiki-folder-count { font-size: 0.6rem; color: #a0aec0; flex-shrink: 0; }
+  .wiki-children { display: none; }
+  .wiki-children.open { display: block; }
+  .wiki-node[data-wiki-is-page]:not([style*="display: none"]) { display: flex; }
+  .wiki-node[style*="display: none"] { display: none !important; }
+  /* Recently visited */
+  .wiki-recent-hdr { font-size: 0.62rem; color: #a0aec0; padding: 8px 14px 2px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .wiki-recent-item { display: flex; align-items: center; gap: 6px; padding: 2px 14px; }
+  .wiki-recent-link { color: #cbd5e0; text-decoration: none; font-size: 0.74rem; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .wiki-recent-link:hover { color: #818cf8; }
+  .wiki-recent-badge { font-size: 0.58rem; padding: 1px 5px; border-radius: 3px; font-weight: 600; color: #fff; flex-shrink: 0; }
+
+  /* ══ Wiki slide-in preview panel ═══════════════════════════════════════════ */
+  #wiki-preview-panel {
+    position: fixed; right: 0; top: 0; height: 100vh; width: 880px; max-width: 96vw;
+    background: #16162a; border-left: 2px solid #818cf8;
+    box-shadow: -6px 0 32px rgba(0,0,0,.7);
+    display: flex; flex-direction: column; z-index: 9998;
+    transform: translateX(100%); transition: transform 0.22s cubic-bezier(.4,0,.2,1);
+  }
+  #wiki-preview-panel.open { transform: translateX(0); }
+  #wiki-preview-hdr { padding: 12px 36px 10px 16px; border-bottom: 1px solid #2d2d4a; flex-shrink: 0; background: #1a1a30; min-height: 56px; }
+  #wiki-preview-title { font-size: 0.88rem; font-weight: 700; color: #e2e8f0; margin-bottom: 4px; }
+  #wiki-preview-meta { font-size: 0.64rem; color: #a0aec0; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #wiki-preview-close {
+    position: absolute; top: 10px; right: 12px; cursor: pointer;
+    color: #a0aec0; font-size: 1rem; padding: 3px 6px; border-radius: 4px; z-index: 1; background: none; border: none;
+  }
+  #wiki-preview-close:hover { background: #2d2d4a; color: #fff; }
+  #wiki-preview-body {
+    flex: 1; overflow-y: auto; padding: 16px 20px; font-size: 0.82rem; line-height: 1.65; color: #cbd5e0;
+  }
+  #wiki-preview-body h1,#wiki-preview-body h2 { font-size:1.05rem; color:#e2e8f0; margin:14px 0 6px; border-bottom:1px solid #2d2d4a; padding-bottom:4px; }
+  #wiki-preview-body h3 { font-size:.92rem; color:#e2e8f0; margin:12px 0 4px; }
+  #wiki-preview-body h4 { font-size:.84rem; color:#c4c9d4; margin:10px 0 3px; }
+  #wiki-preview-body p { margin:6px 0; }
+  #wiki-preview-body a { color:#818cf8; text-decoration:none; }
+  #wiki-preview-body a:hover { text-decoration:underline; }
+  #wiki-preview-body code { background:#1a1a2e; border:1px solid #2d2d4a; border-radius:3px; padding:1px 5px; font-size:.8rem; font-family:monospace; }
+  #wiki-preview-body pre { background:#1a1a2e; border:1px solid #2d2d4a; border-radius:6px; padding:12px; overflow-x:auto; margin:8px 0; cursor:zoom-in; position:relative; }
+  #wiki-preview-body pre:hover::after { content:'⤢ rozbalit'; position:absolute; top:6px; right:8px; font-size:.62rem; color:#818cf8; background:#1a1a2ccc; padding:2px 6px; border-radius:3px; pointer-events:none; }
+  #wiki-preview-body pre code { background:none; border:none; padding:0; font-size:.8rem; }
+  #wiki-preview-body blockquote { border-left:3px solid #818cf8; margin:8px 0; padding:4px 12px; background:#1a1a2e; border-radius:0 4px 4px 0; color:#a0aec0; }
+  #wiki-preview-body table { width:100%; border-collapse:collapse; margin:8px 0; font-size:.78rem; cursor:zoom-in; }
+  #wiki-preview-body th { background:#1a1a2e; color:#818cf8; padding:6px 10px; text-align:left; border:1px solid #2d2d4a; }
+  #wiki-preview-body td { padding:5px 10px; border:1px solid #2d2d4a; }
+  #wiki-preview-body tr:nth-child(even) td { background:#0f0f1a; }
+  #wiki-preview-body table:hover { outline:1px solid #4f46e5; outline-offset:2px; }
+  #wiki-preview-body img { max-width:100%; border-radius:5px; cursor:zoom-in; }
+  #wiki-preview-body ul,#wiki-preview-body ol { padding-left:20px; margin:6px 0; }
+  #wiki-preview-body li { margin:2px 0; }
+  #wiki-preview-body hr { border:none; border-top:1px solid #2d2d4a; margin:12px 0; }
+  #wiki-preview-body s { opacity:.6; }
+  /* Mermaid */
+  .mermaid-wrap { background:#1a1a30; border:1px solid #2d2d4a; border-radius:8px; padding:14px; margin:10px 0; overflow-x:auto; text-align:center; position:relative; cursor:zoom-in; }
+  .mermaid-wrap:hover::after { content:'⤢ rozbalit'; position:absolute; top:6px; right:8px; font-size:.62rem; color:#818cf8; background:#1a1a30cc; padding:2px 6px; border-radius:3px; pointer-events:none; }
+  .mermaid-wrap svg { max-width:100%; height:auto; }
+  /* TOC */
+  .wiki-toc { background:#1a1a2e; border:1px solid #2d2d4a; border-radius:6px; padding:8px 12px; margin:10px 0 16px; }
+  .wiki-toc-hdr { font-size:.75rem; font-weight:700; color:#818cf8; cursor:pointer; user-select:none; }
+  .wiki-toc-body { display:none; margin-top:6px; }
+  .wiki-toc-body.open { display:block; }
+  .wiki-toc-item { padding:1px 0; }
+  .wiki-toc-item a { font-size:.75rem; color:#a0aec0; text-decoration:none; }
+  .wiki-toc-item a:hover { color:#818cf8; }
+  .wiki-toc-back { font-size:.6rem; color:#a0aec0 !important; margin-left:6px; opacity:0; transition:opacity .15s; }
+  #wiki-preview-body h1:hover .wiki-toc-back,
+  #wiki-preview-body h2:hover .wiki-toc-back,
+  #wiki-preview-body h3:hover .wiki-toc-back,
+  #wiki-preview-body h4:hover .wiki-toc-back { opacity:1; }
+  .wiki-toc-back:hover { color:#818cf8 !important; opacity:1 !important; }
+  /* Footer close bar */
+  #wiki-preview-footer { padding:10px 18px; border-top:1px solid #2d2d4a; flex-shrink:0; background:#1a1a30; display:flex; justify-content:flex-end; }
+  .wiki-close-btn { padding:3px 11px; border-radius:4px; border:none; cursor:pointer; font-size:.72rem; font-weight:600; background:#2d3748; color:#a0aec0; }
+  .wiki-close-btn:hover { background:#374151; color:#fff; }
+
+  /* ══ Wiki expand modal ══════════════════════════════════════════════════════ */
+  #wiki-expand-modal { display:none; position:fixed; inset:0; z-index:99999; background:rgba(0,0,0,.85); align-items:center; justify-content:center; padding:16px; }
+  #wiki-expand-modal.open { display:flex; }
+  #wiki-expand-modal-inner { background:#13131f; border:1px solid #2d2d4a; border-radius:12px; width:96vw; height:94vh; display:flex; flex-direction:column; overflow:hidden; box-shadow:0 24px 80px rgba(0,0,0,.8); }
+  #wiki-expand-modal-header { display:flex; align-items:center; justify-content:space-between; padding:10px 16px; border-bottom:1px solid #2d2d4a; flex-shrink:0; }
+  #wiki-expand-modal-title { font-size:.72rem; font-weight:700; color:#a0aec0; text-transform:uppercase; letter-spacing:.06em; }
+  #wiki-expand-modal-close { background:none; border:none; color:#a0aec0; font-size:1.1rem; cursor:pointer; line-height:1; padding:2px 6px; border-radius:4px; }
+  #wiki-expand-modal-close:hover { background:#2d2d4a; color:#fff; }
+  #wiki-expand-modal-body { overflow:auto; padding:24px 32px; flex:1; }
+  #wiki-expand-modal-body svg { max-width:100%; height:auto; display:block; margin:0 auto; }
+  #wiki-expand-modal-body pre { margin:0; white-space:pre-wrap; word-break:break-all; font-size:.85rem; line-height:1.6; color:#e2e8f0; }
+  #wiki-expand-modal-body img { max-width:100%; max-height:86vh; display:block; margin:0 auto; border-radius:6px; }
+  #wiki-expand-modal-body table { width:100%; border-collapse:collapse; font-size:.84rem; }
+  #wiki-expand-modal-body th { background:#1a1a30; color:#818cf8; padding:8px 12px; text-align:left; border:1px solid #2d2d4a; }
+  #wiki-expand-modal-body td { padding:7px 12px; border:1px solid #2d2d4a; color:#e2e8f0; }
+  #wiki-expand-modal-body tr:nth-child(even) td { background:#0f0f1e; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js" defer></script>
+</head>
+<body>
+
+<!-- ── WIZARD ──────────────────────────────────────────────────────────── -->
+<div id="wizard">
+  <div class="wz-card">
+    <div class="wz-logo">🔷</div>
+    <div class="wz-app-name">DevOps Integrator</div>
+    <div class="wz-app-sub">Azure DevOps work item viewer</div>
+
+    <div class="wz-progress" id="wz-progress">
+      <div class="wz-dot active"></div>
+      <div class="wz-dot"></div>
+      <div class="wz-dot"></div>
+      <div class="wz-dot"></div>
+      <div class="wz-dot"></div>
+    </div>
+
+    <!-- Krok 1: Kontrola prostředí -->
+    <div class="wz-step active" id="step-1">
+      <div class="wz-step-label">Krok 1 / 5</div>
+      <h2>Kontrola prostředí</h2>
+      <p>Ověřuji, že máš vše potřebné pro spuštění aplikace.</p>
+      <div id="env-checks">
+        <div class="wz-check">
+          <span class="wz-check-icon">⏳</span>
+          <span class="wz-check-label">Načítám…</span>
+        </div>
+      </div>
+      <div class="wz-actions">
+        <button class="wz-btn wz-btn-primary" id="btn-step1-next" onclick="wzGo(2)" disabled>Dál →</button>
+      </div>
+    </div>
+
+    <!-- Krok 2: Organizace -->
+    <div class="wz-step" id="step-2">
+      <div class="wz-step-label">Krok 2 / 5</div>
+      <h2>Azure DevOps organizace</h2>
+      <p>Najdeš ji v URL adrese DevOps: <code style="color:var(--accent2)">dev.azure.com/<strong>TOTO</strong>/projekt</code></p>
+      <div class="wz-input-group">
+        <label class="wz-input-label">Název organizace</label>
+        <input class="wz-input" id="inp-org" type="text" placeholder="např. innogyDevOps" autocomplete="off">
+      </div>
+      <div class="wz-actions">
+        <button class="wz-btn wz-btn-ghost" onclick="wzGo(1)">← Zpět</button>
+        <button class="wz-btn wz-btn-primary" onclick="wzStep2Next()">Dál →</button>
+      </div>
+    </div>
+
+    <!-- Krok 3: PAT token + ověření -->
+    <div class="wz-step" id="step-3">
+      <div class="wz-step-label">Krok 3 / 5</div>
+      <h2>Personal Access Token (PAT)</h2>
+      <p>
+        Vytvoř PAT na <a href="https://dev.azure.com" target="_blank" style="color:var(--accent2)">dev.azure.com</a>:
+        <br>User Settings → Personal Access Tokens → New Token
+        <br>Scope: <strong>Work Items (Read)</strong>, <strong>Project and Team (Read)</strong>
+      </p>
+      <div class="wz-input-group">
+        <label class="wz-input-label">PAT token</label>
+        <input class="wz-input" id="inp-pat" type="password" placeholder="Vlož token (zobrazí se jen jednou)">
+      </div>
+      <div id="pat-error" class="wz-error"></div>
+      <div id="pat-success" class="wz-success"></div>
+      <div class="wz-actions">
+        <button class="wz-btn wz-btn-ghost" onclick="wzGo(2)">← Zpět</button>
+        <button class="wz-btn wz-btn-primary" id="btn-verify" onclick="wzVerifyPat()">Ověřit a pokračovat →</button>
+      </div>
+    </div>
+
+    <!-- Krok 4: Výběr projektů -->
+    <div class="wz-step" id="step-4">
+      <div class="wz-step-label">Krok 4 / 5</div>
+      <h2>Vyber projekty</h2>
+      <p>Zaškrtni projekty, které chceš sledovat. U každého napiš krátkou zkratku a vyber barvu.</p>
+      <div class="proj-list" id="proj-list"></div>
+      <div id="proj-error" class="wz-error"></div>
+      <div class="wz-actions">
+        <button class="wz-btn wz-btn-ghost" onclick="wzGo(3)">← Zpět</button>
+        <button class="wz-btn wz-btn-primary" onclick="wzStep4Next()">Dál →</button>
+      </div>
+    </div>
+
+    <!-- Krok 5: Email + uložení -->
+    <div class="wz-step" id="step-5">
+      <div class="wz-step-label">Krok 5 / 5</div>
+      <h2>Tvůj pracovní email</h2>
+      <p>Email musí odpovídat Azure AD účtu, ze kterého byl vygenerován PAT. Používá se pro filtr "Přiřazeno mně" a "Moje aktivita".</p>
+      <div class="wz-input-group">
+        <label class="wz-input-label">Email</label>
+        <input class="wz-input" id="inp-email" type="email" placeholder="jmeno.prijmeni@firma.cz">
+      </div>
+      <div class="wz-input-group">
+        <label class="wz-input-label">Aktivita — kolik dní zpět (výchozí: 14)</label>
+        <input class="wz-input" id="inp-days" type="number" value="14" min="1" max="90">
+      </div>
+      <div id="save-error" class="wz-error"></div>
+      <div class="wz-actions">
+        <button class="wz-btn wz-btn-ghost" onclick="wzGo(4)">← Zpět</button>
+        <button class="wz-btn wz-btn-primary" id="btn-save" onclick="wzSave()">Uložit a spustit →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN APP ──────────────────────────────────────────────────────────── -->
+<div id="app">
+  <div class="app-header">
+    <div style="font-size:1.3rem">🔷</div>
+    <div class="app-header-title">DevOps Integrator</div>
+    <div class="app-header-meta" id="hdr-meta"></div>
+    <button class="app-header-btn" id="btn-refresh" onclick="dvRefresh(this)">🔄 Obnovit</button>
+    <button class="app-header-btn" onclick="doReset()" title="Znovu spustit průvodce">⚙️ Reset</button>
+  </div>
+  <div class="app-body" id="app-body">
+    <div class="dv-empty">Načítám data… <span class="spin">⏳</span></div>
+  </div>
+  <div class="app-body" style="margin-top:0;padding-top:0">
+    <div class="wiki-section" id="wiki-section">
+      <div class="wiki-section-hdr" onclick="wikiToggleSection()">
+        <span id="wiki-section-chevron">▼</span>
+        <span>📖 Wiki</span>
+        <span id="wiki-section-count" style="font-size:.65rem;color:#a0aec0;font-weight:400"></span>
+      </div>
+      <div class="wiki-section-body" id="wiki-section-body">
+        <div class="wiki-controls">
+          <button class="wiki-filter-btn active" id="wiki-btn-all" onclick="wikiSetFilter('all')">Vše</button>
+          <button class="wiki-filter-btn" id="wiki-btn-mine" onclick="wikiSetFilter('mine')">Moje</button>
+          <button class="wiki-ctrl-btn" onclick="wikiExpandAll()">⊞</button>
+          <button class="wiki-ctrl-btn" onclick="wikiCollapseAll()">⊟</button>
+          <button class="wiki-refresh-btn" onclick="wikiRefresh()" title="Obnovit wiki">🔄</button>
+        </div>
+        <div class="wiki-search-wrap">
+          <input type="search" class="wiki-search" id="wiki-search-input" placeholder="🔍 Hledat v wiki…" oninput="wikiSearch(this.value)">
+        </div>
+        <div id="wiki-content">
+          <div style="padding:20px;color:#a0aec0;text-align:center">Načítám wiki…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div id="dv-tip"></div>
+
+<!-- Note modal -->
+<div id="note-overlay">
+  <div id="note-box">
+    <h4>📝 Dashboard poznámka <span id="note-item-label"></span></h4>
+    <textarea id="note-ta" placeholder="Napiš poznámku k tomuto itemu…"></textarea>
+    <div class="note-actions">
+      <button class="note-delete" id="note-del-btn" onclick="noteDelete()">Smazat</button>
+      <button class="note-cancel" onclick="noteClose()">Zrušit</button>
+      <button class="note-save" onclick="noteSave()">Uložit</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+
+// ── State ──────────────────────────────────────────────────────────────────
+let _data   = null;
+let _notes  = {};
+let _ccache = {};  // comment cache
+const _wzState = { org: '', pat: '', projects: [] };  // wizard collected data
+let _noteCurrentId = null;
+
+// ── Section layout & order state ───────────────────────────────────────────
+const GRID_LAYOUTS = [
+  { key: 'dv-grid-1',     label: '1 sl.' },
+  { key: 'dv-grid-2',     label: '2 sl.' },
+  { key: 'dv-grid-3',     label: '3 sl.' },
+  { key: 'dv-grid-4',     label: '4 sl.' },
+  { key: 'dv-grid-auto2', label: 'Auto ×2' },
+  { key: 'dv-grid-auto4', label: 'Auto ×4' },
+];
+let _assignedGrid   = localStorage.getItem('dv-assigned-grid')  || 'dv-grid-4';
+let _secCollapsed   = JSON.parse(localStorage.getItem('dv-collapsed')  || '{}');
+let _secOrder       = JSON.parse(localStorage.getItem('dv-sec-order')  || '["assigned","activity","following"]');
+if (!_secOrder.includes('following')) _secOrder.push('following');
+
+// ── Init ───────────────────────────────────────────────────────────────────
+(async () => {
+  const status = await fetch('/api/setup/status').then(r => r.json()).catch(() => ({ configured: false }));
+  if (status.configured) {
+    showApp();
+  } else {
+    showWizard();
+    initEnvCheck(status);
+  }
+})();
+
+// ── Wizard helpers ─────────────────────────────────────────────────────────
+function showWizard() {
+  document.getElementById('wizard').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
+function showApp() {
+  document.getElementById('wizard').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  loadAll();
+  wikiInit();
+}
+
+function wzGo(step) {
+  document.querySelectorAll('.wz-step').forEach(s => s.classList.remove('active'));
+  document.getElementById(`step-${step}`).classList.add('active');
+  // Progress dots
+  const dots = document.querySelectorAll('.wz-dot');
+  dots.forEach((d, i) => {
+    d.classList.toggle('done',   i < step - 1);
+    d.classList.toggle('active', i === step - 1);
+  });
+}
+
+function initEnvCheck(status) {
+  const node = status.nodeVersion || process?.versions?.node;
+  const checks = document.getElementById('env-checks');
+  checks.innerHTML = `
+    <div class="wz-check">
+      <span class="wz-check-icon">✅</span>
+      <span class="wz-check-label">Node.js</span>
+      <span class="wz-check-val">${status.nodeVersion || 'OK'}</span>
+    </div>
+    <div class="wz-check">
+      <span class="wz-check-icon">✅</span>
+      <span class="wz-check-label">Server běží</span>
+      <span class="wz-check-val">localhost:${location.port || 4242}</span>
+    </div>
+    <div class="wz-check">
+      <span class="wz-check-icon">✅</span>
+      <span class="wz-check-label">Platforma</span>
+      <span class="wz-check-val">${status.platform || '—'}</span>
+    </div>`;
+  document.getElementById('btn-step1-next').disabled = false;
+}
+
+function wzStep2Next() {
+  const org = document.getElementById('inp-org').value.trim();
+  if (!org) { document.getElementById('inp-org').focus(); return; }
+  _wzState.org = org;
+  wzGo(3);
+}
+
+async function wzVerifyPat() {
+  const pat = document.getElementById('inp-pat').value.trim();
+  if (!pat) { document.getElementById('inp-pat').focus(); return; }
+  const errEl  = document.getElementById('pat-error');
+  const okEl   = document.getElementById('pat-success');
+  const btn    = document.getElementById('btn-verify');
+  errEl.classList.remove('show'); okEl.classList.remove('show');
+  btn.textContent = '⏳ Ověřuji…'; btn.disabled = true;
+  try {
+    const r = await fetch('/api/setup/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organization: _wzState.org, pat })
+    });
+    const d = await r.json();
+    if (!r.ok || d.error) {
+      errEl.textContent = d.error || 'Ověření selhalo';
+      errEl.classList.add('show');
+    } else {
+      _wzState.pat = pat;
+      _wzState.allProjects = d.projects || [];
+      okEl.textContent = `✅ Připojeno! Nalezeno ${d.count} projektů.`;
+      okEl.classList.add('show');
+      setTimeout(() => { wzGo(4); renderProjList(d.projects); }, 800);
+    }
+  } catch (e) {
+    errEl.textContent = `Chyba: ${e.message}`;
+    errEl.classList.add('show');
+  } finally {
+    btn.textContent = 'Ověřit a pokračovat →'; btn.disabled = false;
+  }
+}
+
+const PROJ_COLORS = ['#818cf8','#34d399','#f6ad55','#fc8181','#a78bfa','#38bdf8','#fb7185','#4ade80'];
+function renderProjList(projects) {
+  const el = document.getElementById('proj-list');
+  el.innerHTML = projects.map((p, i) => `
+    <label class="proj-item" id="pl-${i}">
+      <input type="checkbox" onchange="toggleProjItem(${i})" id="pchk-${i}">
+      <span class="proj-name">${p.name}</span>
+      <input class="proj-label-input" id="plbl-${i}" type="text" value="${p.name.slice(0,6)}" placeholder="Zkratka" onclick="event.stopPropagation()">
+      <input class="proj-color-input" id="pclr-${i}" type="color" value="${PROJ_COLORS[i % PROJ_COLORS.length]}" onclick="event.stopPropagation()">
+    </label>`).join('');
+}
+function toggleProjItem(i) {
+  const checked = document.getElementById(`pchk-${i}`).checked;
+  document.getElementById(`pl-${i}`).classList.toggle('selected', checked);
+}
+
+function wzStep4Next() {
+  const errEl = document.getElementById('proj-error');
+  errEl.classList.remove('show');
+  const selected = [];
+  (_wzState.allProjects || []).forEach((p, i) => {
+    if (document.getElementById(`pchk-${i}`)?.checked) {
+      selected.push({
+        name: p.name,
+        shortLabel: document.getElementById(`plbl-${i}`).value.trim() || p.name.slice(0,6),
+        color: document.getElementById(`pclr-${i}`).value
+      });
+    }
+  });
+  if (!selected.length) {
+    errEl.textContent = 'Vyber alespoň jeden projekt.';
+    errEl.classList.add('show');
+    return;
+  }
+  _wzState.projects = selected;
+  wzGo(5);
+}
+
+async function wzSave() {
+  const email = document.getElementById('inp-email').value.trim();
+  const days  = parseInt(document.getElementById('inp-days').value) || 14;
+  const errEl = document.getElementById('save-error');
+  const btn   = document.getElementById('btn-save');
+  errEl.classList.remove('show');
+  if (!email || !email.includes('@')) {
+    errEl.textContent = 'Zadej platný email.'; errEl.classList.add('show'); return;
+  }
+  btn.textContent = '⏳ Ukládám…'; btn.disabled = true;
+  try {
+    const r = await fetch('/api/setup/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        organization: _wzState.org, pat: _wzState.pat,
+        email, projects: _wzState.projects,
+        activityDays: days, cacheMinutes: 5
+      })
+    });
+    const d = await r.json();
+    if (d.error) { errEl.textContent = d.error; errEl.classList.add('show'); }
+    else { showApp(); }
+  } catch (e) {
+    errEl.textContent = `Chyba: ${e.message}`; errEl.classList.add('show');
+  } finally {
+    btn.textContent = 'Uložit a spustit →'; btn.disabled = false;
+  }
+}
+
+async function doReset() {
+  if (!confirm('Resetovat konfiguraci a spustit průvodce znovu?')) return;
+  await fetch('/api/setup/reset', { method: 'POST' });
+  location.reload();
+}
+
+// ── Main app ───────────────────────────────────────────────────────────────
+async function loadAll() {
+  try { _notes = await fetch('/api/devops/notes').then(r => r.json()); } catch { _notes = {}; }
+  try { _data = await fetch('/api/devops/items').then(r => r.json()); } catch (e) { _data = { error: e.message }; }
+  render();
+}
+
+function render() {
+  document.getElementById('app-body').innerHTML = dvBody(_data);
+  if (_data?.fetchedAt) {
+    const d = new Date(_data.fetchedAt);
+    document.getElementById('hdr-meta').textContent =
+      `Aktualizováno: ${d.toLocaleTimeString('cs-CZ', { hour:'2-digit', minute:'2-digit' })}`;
+  }
+}
+
+async function dvRefresh(btn) {
+  btn.textContent = '⏳';
+  try {
+    _notes = await fetch('/api/devops/notes').then(r => r.json());
+    _data  = await fetch('/api/devops/items?refresh=1').then(r => r.json());
+    _ccache = {};
+    render();
+  } finally { btn.textContent = '🔄 Obnovit'; }
+}
+
+// ── Rendering helpers ──────────────────────────────────────────────────────
+function dvTypeIcon(t) {
+  const m = { 'Bug':'🐛','Task':'📋','User Story':'📖','Feature':'🎯','Epic':'⚡','Test Case':'🧪' };
+  return m[t] || '📄';
+}
+function dvStateClass(s) {
+  const l = (s || '').toLowerCase();
+  if (l === 'active' || l === 'in progress') return 'dv-state-active';
+  if (l === 'resolved' || l === 'done')      return 'dv-state-resolved';
+  if (l === 'new' || l === 'to do')          return 'dv-state-new';
+  return 'dv-state-other';
+}
+function dvPrioClass(n) {
+  if (n == 1) return 'dv-prio-1';
+  if (n == 2) return 'dv-prio-2';
+  if (n == 3) return 'dv-prio-3';
+  return 'dv-prio-4';
+}
+function dvIterLabel(path) {
+  if (!path) return '';
+  const p = path.split('\\'); return p[p.length - 1] || '';
+}
+function dvAreaLabel(path) {
+  if (!path) return '';
+  const p = path.split('\\'); return p[p.length - 1] || '';
+}
+
+function dvRenderItem(item, showDate = false, commentHover = false) {
+  const prio    = item.priority ? `<span class="${dvPrioClass(item.priority)}">P${item.priority}</span>` : '';
+  const state   = `<span class="dv-badge ${dvStateClass(item.state)}">${item.state || '?'}</span>`;
+  const proj    = `<span class="dv-proj-badge" style="background:${item.projectColor||'#555'}">${item.projectLabel||item.project}</span>`;
+  const sprint  = dvIterLabel(item.iterationPath);
+  const sprintH = sprint ? `<span class="dv-sprint">📅 ${sprint}</span>` : '';
+  let dateH = '';
+  if (showDate && item.changedDate) {
+    const d = new Date(item.changedDate);
+    dateH = `<span class="dv-changed">🕐 ${d.toLocaleDateString('cs-CZ',{day:'numeric',month:'numeric'})} ${d.toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'})}</span>`;
+  }
+  const cls = commentHover
+    ? `class="dv-item dv-has-comments" data-dv-id="${item.id}" data-dv-proj="${item.project}"`
+    : `class="dv-item" data-dv-id="${item.id}" data-dv-proj="${item.project}"`;
+  return `<div ${cls}>
+    <span class="dv-item-icon">${dvTypeIcon(item.type)}</span>
+    <div class="dv-item-body">
+      <a class="dv-item-title" href="${item.url}" target="_blank" title="${item.title}">${item.title}</a>
+      <div class="dv-item-meta"><span class="dv-item-id">#${item.id}</span> ${proj}${state}${prio}${sprintH}${dateH}</div>
+    </div>
+  </div>`;
+}
+
+function dvBody(data) {
+  if (!data)        return `<div class="dv-empty">Načítám… <span class="spin">⏳</span></div>`;
+  if (data.error)   return `<div class="dv-empty">⚠️ ${data.error}</div>`;
+
+  const STATE_ORDER = { active:0, 'in progress':0, new:1, 'to do':1, resolved:2, done:2 };
+  const rank = s => STATE_ORDER[(s||'').toLowerCase()] ?? 3;
+  const sortItems = arr => [...arr].sort((a,b) => {
+    const d = rank(a.state) - rank(b.state);
+    return d !== 0 ? d : (a.changedDate < b.changedDate ? 1 : -1);
+  });
+  const areaKey = item => { const p = (item.areaPath||'').split('\\'); return p[p.length-1] || item.project || '—'; };
+
+  const assigned = data.assigned || [];
+  const activity = data.activity || [];
+  const following = data.following || [];
+
+  const sections = {
+    assigned: () => {
+      const collapsed = _secCollapsed['assigned'];
+      let h = `<div class="dv-sec" id="sec-assigned" draggable="true" data-sec="assigned">
+        <div class="dv-section-hdr dv-section-hdr-drag">
+          <span class="dv-drag-handle" title="Přetáhni pro změnu pořadí">⠿</span>
+          <span class="dv-sec-title">👤 Přiřazeno mně (${assigned.length})</span>
+          <button class="dv-collapse-btn" data-sec="assigned" title="${collapsed?'Rozbalit':'Sbalit'}">${collapsed?'▶':'▼'}</button>
+        </div>`;
+      if (!collapsed) {
+        h += `<div class="dv-layout-bar">
+          <span class="dv-layout-bar-label">Rozložení:</span>
+          ${GRID_LAYOUTS.map(l =>
+            `<button class="dv-layout-btn${_assignedGrid===l.key?' active':''}" data-grid="${l.key}">${l.label}</button>`
+          ).join('')}
+        </div>`;
+        if (!assigned.length) {
+          h += `<div class="dv-empty">Žádné přiřazené itemy ✓</div>`;
+        } else {
+          const groups = {};
+          for (const item of assigned) { const k = areaKey(item); (groups[k] = groups[k]||[]).push(item); }
+          h += `<div class="dv-grid ${_assignedGrid}" id="dv-assigned-grid">`;
+          for (const [area, items] of Object.entries(groups).sort()) {
+            h += `<div class="dv-col">
+              <div class="dv-area-hdr">◈ ${area} <span class="dv-area-count">${items.length}</span></div>
+              ${sortItems(items).map(i => dvRenderItem(i, false, true)).join('')}
+            </div>`;
+          }
+          h += `</div>`;
+        }
+      }
+      h += `</div>`;
+      return h;
+    },
+    activity: () => {
+      const collapsed = _secCollapsed['activity'];
+      let h = `<div class="dv-sec" id="sec-activity" draggable="true" data-sec="activity">
+        <div class="dv-section-hdr dv-section-hdr-drag">
+          <span class="dv-drag-handle" title="Přetáhni pro změnu pořadí">⠿</span>
+          <span class="dv-sec-title">💬 Moje aktivita (${activity.length})</span>
+          <button class="dv-collapse-btn" data-sec="activity" title="${collapsed?'Rozbalit':'Sbalit'}">${collapsed?'▶':'▼'}</button>
+        </div>`;
+      if (!collapsed) {
+        if (!activity.length) {
+          h += `<div class="dv-empty">Žádná nedávná aktivita</div>`;
+        } else {
+          const sorted = [...activity].sort((a,b) => new Date(b.changedDate) - new Date(a.changedDate));
+          const col1 = sorted.slice(0, 5), col2 = sorted.slice(5, 10);
+          const col2html = col2.length ? `<div class="dv-col">${col2.map(i => dvRenderItem(i,true,true)).join('')}</div>` : '';
+          h += `<div class="dv-grid dv-grid-2">
+            <div class="dv-col">${col1.map(i => dvRenderItem(i,true,true)).join('')}</div>
+            ${col2html}
+          </div>`;
+        }
+      }
+      h += `</div>`;
+      return h;
+    },
+    following: () => {
+      const collapsed = _secCollapsed['following'];
+      let h = `<div class="dv-sec" id="sec-following" draggable="true" data-sec="following">
+        <div class="dv-section-hdr dv-section-hdr-drag">
+          <span class="dv-drag-handle" title="Přetáhni pro změnu pořadí">⠿</span>
+          <span class="dv-sec-title">👁️ Sleduji (${following.length})</span>
+          <button class="dv-collapse-btn" data-sec="following" title="${collapsed?'Rozbalit':'Sbalit'}">${collapsed?'▶':'▼'}</button>
+        </div>`;
+      if (!collapsed) {
+        if (!following.length) {
+          h += `<div class="dv-empty">Žádné sledované itemy</div>`;
+        } else {
+          const groups = {};
+          for (const item of following) { const k = areaKey(item); (groups[k] = groups[k]||[]).push(item); }
+          h += `<div class="dv-grid dv-grid-2">`;
+          for (const [area, items] of Object.entries(groups).sort()) {
+            h += `<div class="dv-col">
+              <div class="dv-area-hdr">◈ ${area} <span class="dv-area-count">${items.length}</span></div>
+              ${sortItems(items).map(i => dvRenderItem(i, true, true)).join('')}
+            </div>`;
+          }
+          h += `</div>`;
+        }
+      }
+      h += `</div>`;
+      return h;
+    }
+  };
+
+  return _secOrder.map(k => sections[k] ? sections[k]() : '').join('<div class="dv-section-sep"></div>');
+}
+
+// ── Tooltip ────────────────────────────────────────────────────────────────
+const tip = document.getElementById('dv-tip');
+
+function tipHtml(id, cdata) {
+  const note = _notes[String(id)];
+  const d = cdata || {};
+  let h = '';
+  if (d.error) return `<span style="color:#fc8181">⚠️ ${d.error}</span>`;
+  if (d.mine) {
+    h += `<div class="tip-mine"><div class="tip-label">💬 Můj poslední komentář</div>
+      <div class="tip-text">${d.mine.text.slice(0,300)}${d.mine.text.length>300?'…':''}</div>
+      <div class="tip-meta">${d.mine.author} · ${d.mine.date}</div></div>`;
+  }
+  if (d.latest) {
+    if (d.mine) h += '<hr class="tip-sep">';
+    h += `<div class="tip-latest"><div class="tip-label">🔔 Nejnovější komentář</div>
+      <div class="tip-text">${d.latest.text.slice(0,300)}${d.latest.text.length>300?'…':''}</div>
+      <div class="tip-meta">${d.latest.author} · ${d.latest.date}</div></div>`;
+  }
+  if (note) {
+    if (h) h += '<hr class="tip-sep">';
+    h += `<div class="tip-note"><div class="tip-label">📝 Dashboard poznámka</div>
+      <div class="tip-text">${note.slice(0,300)}${note.length>300?'…':''}</div></div>`;
+  }
+  return h || `<span style="color:var(--muted)">Žádné komentáře ani poznámka</span>`;
+}
+
+document.addEventListener('mouseover', async e => {
+  const el = e.target.closest('[data-dv-id]');
+  if (!el) return;
+  const id = el.dataset.dvId, proj = el.dataset.dvProj;
+  const wantsComments = el.classList.contains('dv-has-comments');
+  const hasNote = !!_notes[String(id)];
+  if (!wantsComments && !hasNote) return;
+
+  if (wantsComments && !_ccache[id]) {
+    tip.innerHTML = '<div class="tip-label" style="color:#94a3b8">Načítám…</div>';
+    tip.style.display = 'block';
+    try {
+      _ccache[id] = await fetch(`/api/devops/comments?id=${id}&project=${encodeURIComponent(proj)}`).then(r => r.json());
+    } catch(err) { _ccache[id] = { error: err.message }; }
+  }
+  tip.innerHTML = tipHtml(id, wantsComments ? _ccache[id] : null);
+  tip.style.display = 'block';
+});
+
+document.addEventListener('mousemove', e => {
+  if (tip.style.display === 'none') return;
+  const x = e.clientX + 14, y = e.clientY + 14;
+  const tw = tip.offsetWidth || 380, th = tip.offsetHeight || 100;
+  tip.style.left = (x + tw > window.innerWidth  ? e.clientX - tw - 8 : x) + 'px';
+  tip.style.top  = (y + th > window.innerHeight ? e.clientY - th - 8 : y) + 'px';
+});
+
+document.addEventListener('mouseout', e => {
+  const from = e.target.closest('[data-dv-id]');
+  if (!from) return;
+  if (!e.relatedTarget?.closest('[data-dv-id]')) tip.style.display = 'none';
+});
+
+// ── Notes ──────────────────────────────────────────────────────────────────
+const noteOverlay = document.getElementById('note-overlay');
+noteOverlay.addEventListener('click', e => { if (e.target === noteOverlay) noteClose(); });
+
+document.addEventListener('contextmenu', e => {
+  const el = e.target.closest('[data-dv-id]');
+  if (!el) return;
+  e.preventDefault();
+  tip.style.display = 'none';
+  _noteCurrentId = el.dataset.dvId;
+  const title = el.querySelector('.dv-item-title')?.textContent || '';
+  document.getElementById('note-item-label').textContent = `#${_noteCurrentId} – ${title.slice(0,50)}${title.length>50?'…':''}`;
+  document.getElementById('note-ta').value = _notes[String(_noteCurrentId)] || '';
+  document.getElementById('note-del-btn').style.display = _notes[String(_noteCurrentId)] ? '' : 'none';
+  noteOverlay.classList.add('open');
+  setTimeout(() => document.getElementById('note-ta').focus(), 50);
+});
+
+function noteClose() { noteOverlay.classList.remove('open'); _noteCurrentId = null; }
+
+async function noteSave() {
+  if (!_noteCurrentId) return;
+  const text = document.getElementById('note-ta').value;
+  await fetch('/api/devops/notes', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: _noteCurrentId, text }) });
+  if (text.trim()) _notes[String(_noteCurrentId)] = text.trim();
+  else delete _notes[String(_noteCurrentId)];
+  delete _ccache[_noteCurrentId];
+  noteClose();
+}
+
+async function noteDelete() {
+  if (!_noteCurrentId) return;
+  await fetch('/api/devops/notes', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id: _noteCurrentId, text: '' }) });
+  delete _notes[String(_noteCurrentId)];
+  delete _ccache[_noteCurrentId];
+  noteClose();
+}
+
+// ── Layout selector ────────────────────────────────────────────────────────
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.dv-layout-btn');
+  if (!btn) return;
+  const grid = btn.dataset.grid;
+  _assignedGrid = grid;
+  localStorage.setItem('dv-assigned-grid', grid);
+  const gridEl = document.getElementById('dv-assigned-grid');
+  if (gridEl) gridEl.className = `dv-grid ${grid}`;
+  document.querySelectorAll('.dv-layout-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.grid === grid);
+  });
+});
+
+// ── Collapse ───────────────────────────────────────────────────────────────
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.dv-collapse-btn');
+  if (!btn) return;
+  const sec = btn.dataset.sec;
+  _secCollapsed[sec] = !_secCollapsed[sec];
+  localStorage.setItem('dv-collapsed', JSON.stringify(_secCollapsed));
+  render();
+});
+
+// ── Drag-and-drop section reorder ──────────────────────────────────────────
+let _dragSec = null;
+document.addEventListener('dragstart', e => {
+  const sec = e.target.closest('.dv-sec');
+  if (!sec) return;
+  _dragSec = sec.dataset.sec;
+  e.dataTransfer.effectAllowed = 'move';
+  setTimeout(() => sec.classList.add('dv-sec-dragging'), 0);
+});
+document.addEventListener('dragend', e => {
+  document.querySelectorAll('.dv-sec').forEach(s => {
+    s.classList.remove('dv-sec-dragging', 'dv-sec-over');
+  });
+  _dragSec = null;
+});
+document.addEventListener('dragover', e => {
+  const sec = e.target.closest('.dv-sec');
+  if (!sec || sec.dataset.sec === _dragSec) return;
+  e.preventDefault();
+  document.querySelectorAll('.dv-sec').forEach(s => s.classList.remove('dv-sec-over'));
+  sec.classList.add('dv-sec-over');
+});
+document.addEventListener('drop', e => {
+  const sec = e.target.closest('.dv-sec');
+  if (!sec || !_dragSec || sec.dataset.sec === _dragSec) return;
+  e.preventDefault();
+  const order = [..._secOrder];
+  const fromIdx = order.indexOf(_dragSec);
+  const toIdx   = order.indexOf(sec.dataset.sec);
+  if (fromIdx !== -1 && toIdx !== -1) {
+    order.splice(fromIdx, 1);
+    order.splice(toIdx, 0, _dragSec);
+    _secOrder = order;
+    localStorage.setItem('dv-sec-order', JSON.stringify(_secOrder));
+    render();
+  }
+});
+
+// Auto-refresh every 5 min
+setInterval(() => {
+  if (document.getElementById('app').style.display !== 'none') {
+    fetch('/api/devops/items?refresh=1').then(r => r.json()).then(d => { _data = d; render(); }).catch(() => {});
+  }
+}, 5 * 60 * 1000);
+
+// ═══════════════════════════════════════════════════════════════
+// WIKI
+// ═══════════════════════════════════════════════════════════════
+
+let _wikiData = null;
+let _wikiFilter = localStorage.getItem('wiki-filter') || 'all';
+let _wikiSearchQ = '';
+let _wikiSectionOpen = localStorage.getItem('wiki-section-open') !== 'false';
+let _wikiPreviewCache = {};
+let _wikiPreviewCurrentKey = null;
+let _wikiShowTimer = null;
+let _wikiHideTimer = null;
+let _wikiRecent = JSON.parse(localStorage.getItem('wiki-recent') || '[]');
+let _mermaidInited = false;
+let _wikiPanel = null;
+let _wikiExpandModal = null;
+
+function wikiToggleSection() {
+  _wikiSectionOpen = !_wikiSectionOpen;
+  localStorage.setItem('wiki-section-open', _wikiSectionOpen);
+  document.getElementById('wiki-section-body').style.display = _wikiSectionOpen ? '' : 'none';
+  document.getElementById('wiki-section-chevron').textContent = _wikiSectionOpen ? '▼' : '▶';
+}
+
+function wikiSetFilter(f) {
+  _wikiFilter = f;
+  localStorage.setItem('wiki-filter', f);
+  document.getElementById('wiki-btn-all').classList.toggle('active', f === 'all');
+  document.getElementById('wiki-btn-mine').classList.toggle('active', f === 'mine');
+  wikiRender();
+}
+
+function wikiSearch(q) {
+  _wikiSearchQ = q;
+  const term = q.trim().toLowerCase();
+  if (term) {
+    document.querySelectorAll('.wiki-tree, .wiki-children').forEach(el => el.classList.add('open'));
+    document.querySelectorAll('.wiki-proj-chevron').forEach(el => el.classList.add('open'));
+    document.querySelectorAll('.wiki-node-toggle').forEach(el => { if (el.textContent === '▶') el.textContent = '▼'; });
+  }
+  document.querySelectorAll('.wiki-node[data-wiki-is-page]').forEach(node => {
+    const text = node.dataset.searchText || '';
+    const show = !term || text.includes(term);
+    node.style.display = show ? '' : 'none';
+  });
+}
+
+function wikiExpandAll() {
+  document.querySelectorAll('.wiki-tree, .wiki-children').forEach(el => el.classList.add('open'));
+  document.querySelectorAll('.wiki-proj-chevron').forEach(el => el.classList.add('open'));
+  document.querySelectorAll('.wiki-node-toggle').forEach(el => { if (el.textContent) el.textContent = '▼'; });
+}
+
+function wikiCollapseAll() {
+  document.querySelectorAll('.wiki-tree').forEach(el => el.classList.remove('open'));
+  document.querySelectorAll('.wiki-children').forEach(el => el.classList.remove('open'));
+  document.querySelectorAll('.wiki-proj-chevron').forEach(el => el.classList.remove('open'));
+  document.querySelectorAll('.wiki-node-toggle').forEach(el => { if (el.textContent) el.textContent = '▶'; });
+}
+
+function wikiToggleFolder(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.classList.toggle('open');
+  const toggle = el.previousElementSibling?.querySelector?.('.wiki-node-toggle');
+  if (toggle && toggle.textContent) toggle.textContent = el.classList.contains('open') ? '▼' : '▶';
+}
+
+function wikiToggleProject(id) {
+  const tree = document.getElementById(id);
+  const chevron = document.getElementById(id + '-chevron');
+  if (!tree) return;
+  tree.classList.toggle('open');
+  chevron?.classList.toggle('open');
+}
+
+function wikiMarkVisited(linkEl) {
+  const title = linkEl.dataset.wikiTitle || linkEl.textContent || '';
+  const url = linkEl.href;
+  const label = linkEl.dataset.wikiProjLabel || '';
+  const color = linkEl.dataset.wikiProjColor || '#555';
+  _wikiRecent = [{ title, url, label, color }, ..._wikiRecent.filter(r => r.url !== url)].slice(0, 8);
+  localStorage.setItem('wiki-recent', JSON.stringify(_wikiRecent));
+}
+
+async function wikiRefresh() {
+  document.getElementById('wiki-content').innerHTML = '<div style="padding:20px;color:#a0aec0;text-align:center">Obnovuji…</div>';
+  try {
+    const r = await fetch('/api/devops/wiki?refresh=1');
+    _wikiData = await r.json();
+  } catch(e) { _wikiData = { error: e.message }; }
+  wikiRender();
+}
+
+function wikiCountPages(node) {
+  let n = 0;
+  if (node._page) n++;
+  for (const child of Object.values(node._children || {})) n += wikiCountPages(child);
+  return n;
+}
+
+function wikiRender() {
+  if (!_wikiData) return;
+  const container = document.getElementById('wiki-content');
+  if (!container) return;
+
+  const projects = _wikiData.projects || [];
+  if (!projects.length) {
+    container.innerHTML = '<div style="padding:20px;color:#a0aec0;text-align:center">Žádné wiki stránky nenalezeny.</div>';
+    return;
+  }
+
+  // Update count badge
+  const total = projects.reduce((s, p) => s + p.pages.length, 0);
+  const mine = projects.reduce((s, p) => s + p.pages.filter(pg => pg.mine).length, 0);
+  document.getElementById('wiki-section-count').textContent =
+    `(${_wikiFilter === 'mine' ? mine : total})`;
+
+  let html = '';
+
+  // Recently visited
+  if (_wikiRecent.length) {
+    html += `<div class="wiki-recent-hdr">Naposledy navštívené</div>`;
+    for (const r of _wikiRecent) {
+      html += `<div class="wiki-recent-item">
+        <span class="wiki-recent-badge" style="background:${r.color}">${r.label}</span>
+        <a class="wiki-recent-link" href="${r.url}" target="_blank">${r.title}</a>
+      </div>`;
+    }
+    html += `<div style="border-top:1px solid #2d2d4a;margin:8px 0"></div>`;
+  }
+
+  // Build tree per project
+  for (const proj of projects) {
+    const pages = _wikiFilter === 'mine' ? proj.pages.filter(p => p.mine) : proj.pages;
+    if (!pages.length) continue;
+
+    // Build tree structure
+    const root = { _children: {} };
+    for (const page of pages) {
+      const parts = (page.path || '/').split('/').filter(Boolean);
+      let cur = root;
+      for (let i = 0; i < parts.length; i++) {
+        const seg = parts[i];
+        cur._children = cur._children || {};
+        if (!cur._children[seg]) cur._children[seg] = { _children: {} };
+        cur = cur._children[seg];
+        if (i === parts.length - 1) cur._page = page;
+      }
+    }
+
+    const projId = 'wiki-proj-' + proj.name.replace(/[^a-z0-9]/gi, '_');
+
+    function renderNode(node, depth) {
+      let h = '';
+      const children = Object.entries(node._children || {});
+      for (const [name, data] of children) {
+        const hasChildren = Object.keys(data._children || {}).length > 0;
+        const nodeId = 'wn-' + Math.random().toString(36).slice(2);
+        const mineTag = data._page?.mine ? ' 🖊' : '';
+        const childCount = hasChildren ? wikiCountPages(data) : 0;
+        const countBadge = hasChildren ? `<span class="wiki-folder-count">(${childCount})</span>` : '';
+        const indent = `style="padding-left:${depth * 14 + 8}px"`;
+
+        const titleEl = data._page
+          ? `<a class="wiki-node-title" href="${data._page.url}" target="_blank"
+               onclick="wikiMarkVisited(this)"
+               onmouseenter="wikiPreviewEnter(this)"
+               onmouseleave="wikiPreviewLeave()"
+               data-wiki-path="${encodeURIComponent(data._page.path)}"
+               data-wiki-project="${encodeURIComponent(proj.name)}"
+               data-wiki-proj-label="${(proj.label||'').replace(/"/g,'&quot;')}"
+               data-wiki-proj-color="${proj.color}"
+               data-wiki-id="${encodeURIComponent(proj.wikiId)}"
+               data-wiki-title="${name.replace(/"/g,'&quot;')}">${name}${mineTag}</a>`
+          : hasChildren
+            ? `<span class="wiki-node-title wiki-folder-title" onclick="wikiToggleFolder('${nodeId}')">${name}</span>`
+            : `<span class="wiki-node-title" style="color:#a0aec0;cursor:default">${name}</span>`;
+
+        const toggle = hasChildren
+          ? `<span class="wiki-node-toggle" onclick="wikiToggleFolder('${nodeId}')">▶</span>`
+          : `<span class="wiki-node-toggle"></span>`;
+
+        h += `<div class="wiki-node" ${data._page ? `data-wiki-is-page="1" data-search-text="${name.toLowerCase()}"` : `data-wiki-is-folder="1"`}>
+          <div ${indent} style="display:flex;align-items:center;gap:4px;width:100%">
+            ${toggle}${titleEl}${countBadge}
+          </div>
+        </div>`;
+
+        if (hasChildren) {
+          h += `<div class="wiki-children" id="${nodeId}">${renderNode(data, depth + 1)}</div>`;
+        }
+      }
+      return h;
+    }
+
+    html += `<div class="wiki-proj-block">
+      <div class="wiki-proj-hdr" onclick="wikiToggleProject('${projId}')">
+        <span class="wiki-proj-chevron" id="${projId}-chevron">›</span>
+        <span class="wiki-proj-label" style="background:${proj.color}">${proj.label}</span>
+        <span class="wiki-proj-name">${proj.name}</span>
+        <span class="wiki-proj-count">${pages.length} stránek</span>
+      </div>
+      <div class="wiki-tree" id="${projId}">${renderNode(root, 0)}</div>
+    </div>`;
+  }
+
+  container.innerHTML = html;
+  if (_wikiSearchQ) wikiSearch(_wikiSearchQ);
+}
+
+// ── Preview panel ─────────────────────────────────────────────────────────
+
+function wikiPreviewEnter(linkEl) {
+  clearTimeout(_wikiHideTimer);
+  _wikiShowTimer = setTimeout(() => wikiPreviewLoad(linkEl), 700);
+}
+
+function wikiPreviewLeave() {
+  clearTimeout(_wikiShowTimer);
+  if (document.getElementById('wiki-expand-modal')?.classList.contains('open')) return;
+  _wikiHideTimer = setTimeout(wikiPreviewClose, 1000);
+}
+
+function wikiPreviewClose() {
+  _wikiPanel?.classList.remove('open');
+  _wikiPreviewCurrentKey = null;
+}
+
+async function wikiPreviewLoad(linkEl) {
+  const path = decodeURIComponent(linkEl.dataset.wikiPath);
+  const project = decodeURIComponent(linkEl.dataset.wikiProject);
+  const wikiId = decodeURIComponent(linkEl.dataset.wikiId);
+  const title = linkEl.dataset.wikiTitle || path;
+  const projLabel = linkEl.dataset.wikiProjLabel || '';
+  const projColor = linkEl.dataset.wikiProjColor || '#555';
+  const cacheKey = `${project}::${path}`;
+  _wikiPreviewCurrentKey = cacheKey;
+
+  document.getElementById('wiki-preview-title').textContent = title;
+  document.getElementById('wiki-preview-meta').innerHTML =
+    `<span style="background:${projColor};color:#fff;font-size:.6rem;padding:1px 6px;border-radius:3px;font-weight:700">${projLabel}</span>
+     <span>${path}</span>`;
+
+  _wikiPanel.classList.add('open');
+
+  const body = document.getElementById('wiki-preview-body');
+  const mdCtx = { project, wikiId };
+  if (_wikiPreviewCache[cacheKey]) {
+    body.innerHTML = wikiRenderMarkdown(_wikiPreviewCache[cacheKey], mdCtx);
+    wikiUpdateMeta(path, projLabel, projColor, _wikiPreviewCache[cacheKey]);
+    wikiRunMermaid(body);
+    wikiAttachExpand(body);
+  } else {
+    body.innerHTML = '<div style="color:#a0aec0;padding:20px">Načítám…</div>';
+    try {
+      const r = await fetch(`/api/devops/wiki/page?path=${encodeURIComponent(path)}&project=${encodeURIComponent(project)}&wikiId=${encodeURIComponent(wikiId)}`);
+      const d = await r.json();
+      _wikiPreviewCache[cacheKey] = d.content || '';
+    } catch { _wikiPreviewCache[cacheKey] = ''; }
+    if (_wikiPreviewCurrentKey === cacheKey) {
+      body.innerHTML = wikiRenderMarkdown(_wikiPreviewCache[cacheKey], mdCtx);
+      wikiUpdateMeta(path, projLabel, projColor, _wikiPreviewCache[cacheKey]);
+      wikiRunMermaid(body);
+      wikiAttachExpand(body);
+    }
+  }
+}
+
+function wikiUpdateMeta(path, projLabel, projColor, content) {
+  const words = content.trim().split(/\s+/).filter(Boolean).length;
+  const mins = Math.ceil(words / 200);
+  const readTime = words < 50 ? '' : `• ~${mins} min čtení`;
+  const wc = words > 0 ? `${words} slov` : 'prázdná stránka';
+  document.getElementById('wiki-preview-meta').innerHTML =
+    `<span style="background:${projColor};color:#fff;font-size:.6rem;padding:1px 6px;border-radius:3px;font-weight:700">${projLabel}</span>
+     <span>${path}</span>
+     <span style="margin-left:auto">${wc} ${readTime}</span>`;
+}
+
+// ── Mermaid ───────────────────────────────────────────────────────────────
+
+async function wikiRunMermaid(container) {
+  const nodes = Array.from(container.querySelectorAll('.mermaid'));
+  if (!nodes.length) return;
+  for (let i = 0; i < 25; i++) {
+    if (typeof mermaid !== 'undefined') break;
+    await new Promise(r => setTimeout(r, 200));
+  }
+  if (typeof mermaid === 'undefined') {
+    nodes.forEach(n => n.closest('.mermaid-wrap').innerHTML =
+      '<div style="color:#f97316;font-size:.72rem;padding:8px">⚠ mermaid.js se nenačetl (offline?)</div>');
+    return;
+  }
+  if (!_mermaidInited) {
+    mermaid.initialize({ startOnLoad: false, theme: 'dark', securityLevel: 'loose', fontFamily: 'ui-sans-serif,sans-serif' });
+    _mermaidInited = true;
+  }
+  for (let i = 0; i < nodes.length; i++) {
+    const node = nodes[i];
+    const code = node.textContent.trim();
+    if (!code) continue;
+    try {
+      const id = `mmd-${Date.now()}-${i}`;
+      const { svg } = await mermaid.render(id, code);
+      node.innerHTML = svg;
+    } catch(e) {
+      node.innerHTML = `<div style="color:#f97316;font-size:.72rem;padding:8px;white-space:pre-wrap">⚠ Mermaid: ${e.message || 'chyba'}</div>`;
+    }
+  }
+  wikiAttachExpand(container);
+}
+
+// ── Expand modal ──────────────────────────────────────────────────────────
+
+function wikiAttachExpand(container) {
+  container.querySelectorAll('.mermaid-wrap').forEach(wrap => {
+    if (wrap.dataset.expandBound) return;
+    wrap.dataset.expandBound = '1';
+    wrap.addEventListener('click', () => wikiExpandOpen('Diagram (Mermaid)', wrap.querySelector('.mermaid') || wrap));
+  });
+  container.querySelectorAll('pre').forEach(pre => {
+    if (pre.dataset.expandBound) return;
+    pre.dataset.expandBound = '1';
+    pre.addEventListener('click', () => wikiExpandOpen('Kódový blok', pre));
+  });
+  container.querySelectorAll('table').forEach(tbl => {
+    if (tbl.dataset.expandBound) return;
+    tbl.dataset.expandBound = '1';
+    tbl.style.cursor = 'zoom-in';
+    tbl.addEventListener('click', () => wikiExpandOpen('Tabulka', tbl));
+  });
+  container.querySelectorAll('img').forEach(img => {
+    if (img.dataset.expandBound) return;
+    img.dataset.expandBound = '1';
+    img.addEventListener('click', () => wikiExpandOpen(img.alt || 'Obrázek', img));
+  });
+}
+
+function wikiExpandOpen(title, contentEl) {
+  document.getElementById('wiki-expand-modal-title').textContent = title;
+  const body = document.getElementById('wiki-expand-modal-body');
+  body.innerHTML = '';
+  body.appendChild(contentEl.cloneNode(true));
+  _wikiExpandModal.classList.add('open');
+}
+
+function wikiExpandClose() {
+  _wikiExpandModal.classList.remove('open');
+  if (!_wikiPanel?.matches(':hover')) {
+    _wikiHideTimer = setTimeout(wikiPreviewClose, 1000);
+  }
+}
+
+// ── TOC helpers ───────────────────────────────────────────────────────────
+
+function wikiTocClick(event, id) {
+  event.preventDefault();
+  document.getElementById('wiki-preview-body')?.querySelector('#' + CSS.escape(id))
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function wikiScrollToToc(event) {
+  event.preventDefault();
+  document.getElementById('wiki-preview-body')?.querySelector('#wiki-toc-anchor')
+    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ── Markdown renderer ─────────────────────────────────────────────────────
+
+function _wikiInline(s) {
+  if (!s) return '';
+  return s
+    .replace(/\*\*\*([^*\n]+)\*\*\*/g, '<strong><em>$1</em></strong>')
+    .replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+    .replace(/_([^_\n]+)_/g, '<em>$1</em>')
+    .replace(/~~([^~\n]+)~~/g, '<s>$1</s>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+}
+
+function wikiRenderMarkdown(md, ctx = {}) {
+  if (!md || !md.trim()) return '<em style="color:#a0aec0">Prázdná stránka</em>';
+  const escCode = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+  // Resolve image src — proxy .attachments through server
+  const resolveImg = (src) => {
+    src = src.trim();
+    const adoM = src.match(/dev\.azure\.com\/[^/]+\/[^/]+\/_apis\/wiki\/wikis\/[^/]+\/attachments\?name=([^&]+)/i);
+    if (adoM && ctx.project && ctx.wikiId) {
+      const name = decodeURIComponent(adoM[1]);
+      return `/api/devops/wiki/attachment?project=${encodeURIComponent(ctx.project)}&wikiId=${encodeURIComponent(ctx.wikiId)}&name=${encodeURIComponent(name)}`;
+    }
+    if (/^https?:\/\//.test(src)) return src;
+    const m = src.match(/(\.attachments\/.+)/i);
+    if (m && ctx.project && ctx.wikiId) {
+      const fullPath = '/' + m[1]; // → /.attachments/filename.png
+      return `/api/devops/wiki/attachment?project=${encodeURIComponent(ctx.project)}&wikiId=${encodeURIComponent(ctx.wikiId)}&name=${encodeURIComponent(fullPath)}`;
+    }
+    return src;
+  };
+
+  md = md
+    .replace(/\[\[_TOC_\]\]/gi, '')
+    .replace(/^::: moniker range.*?^:::/gms, '')
+    .replace(/\[\[(\w[^\]]*)\]\]/g, '$1');
+
+  const blocks = [];
+  const pushBlock = (lang, code) => {
+    const l = (lang || '').trim().toLowerCase();
+    if (l === 'mermaid') {
+      blocks.push(`<div class="mermaid-wrap"><div class="mermaid">${escCode(code.trim())}</div></div>`);
+    } else {
+      blocks.push(`<pre><code>${escCode(code.trim())}</code></pre>`);
+    }
+    return `\x00BLK${blocks.length-1}\x00`;
+  };
+  let s = md
+    .replace(/```(\w*)\r?\n?([\s\S]*?)```/g, (_, lang, code) => pushBlock(lang, code))
+    .replace(/^:::[ \t]*(\w+)[ \t]*\r?\n([\s\S]*?)^:::/gm, (_, lang, code) => pushBlock(lang, code));
+
+  // Protect images (before inline processing so they don't become links)
+  s = s.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (_, alt, src) => {
+    const resolved = resolveImg(src);
+    blocks.push(`<img src="${resolved}" alt="${escCode(alt)}" style="max-width:100%;border-radius:5px;cursor:zoom-in">`);
+    return `\x00BLK${blocks.length-1}\x00`;
+  });
+
+  s = s.replace(/`([^`\n]+)`/g, (_, c) => `<code>${escCode(c)}</code>`);
+
+  const toc = [];
+  s = s.replace(/^(#{1,6})[ \t]+(.+)$/gm, (_, hashes, title) => {
+    const level = hashes.length;
+    const clean = title.replace(/<[^>]+>/g, '').replace(/[*_`]/g, '').trim();
+    const id = 'h-' + clean.toLowerCase().replace(/[^\w\u00C0-\u024F-]/g, '-').replace(/-+/g,'-').slice(0,48);
+    toc.push({ level, clean, id });
+    const backLink = `<a class="wiki-toc-back" href="#wiki-toc-anchor" onclick="wikiScrollToToc(event)" title="Zpět na obsah">↑</a>`;
+    return `<h${Math.min(level,4)} id="${id}">${_wikiInline(title)} ${backLink}</h${Math.min(level,4)}>`;
+  });
+
+  s = s.replace(/^[ \t]*[-*_]{3,}[ \t]*$/gm, '<hr>');
+  s = s.replace(/^>[ \t]?(.*)$/gm, (_, t) => `<bq>${_wikiInline(t)}</bq>`);
+  s = s.replace(/<\/bq>\n<bq>/g, '<br>');
+  s = s.replace(/<bq>/g,'<blockquote>').replace(/<\/bq>/g,'</blockquote>');
+
+  s = s.replace(/^(\|.+\|\r?\n)\|[-| :]+\|\r?\n((?:\|.+\|\r?\n?)*)/gm, (_, header, rows) => {
+    const ths = header.split('|').slice(1,-1).map(c=>`<th>${_wikiInline(c.trim())}</th>`).join('');
+    const trs = rows.trim().split('\n').map(row => {
+      const tds = row.split('|').slice(1,-1).map(c=>`<td>${_wikiInline(c.trim())}</td>`).join('');
+      return `<tr>${tds}</tr>`;
+    }).join('');
+    return `<table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table>`;
+  });
+
+  s = s.replace(/^[ \t]*[-*+][ \t]+(.+)$/gm, (_, t) => `<li>${_wikiInline(t)}</li>`);
+  s = s.replace(/^[ \t]*\d+\.[ \t]+(.+)$/gm, (_, t) => `<li>${_wikiInline(t)}</li>`);
+  s = s.replace(/(<li>.*?<\/li>(\s*<li>.*?<\/li>)*)/gs, m => `<ul>${m}</ul>`);
+
+  s = s.split(/\r?\n\r?\n+/).map(chunk => {
+    chunk = chunk.trim();
+    if (!chunk) return '';
+    if (/^\x00BLK/.test(chunk)) return chunk;
+    if (/^<(h[1-4]|ul|ol|pre|blockquote|hr|table|div)[\s>\/]/.test(chunk)) return chunk;
+    return `<p>${_wikiInline(chunk).replace(/\r?\n/g, '<br>')}</p>`;
+  }).join('\n');
+
+  s = s.replace(/\x00BLK(\d+)\x00/g, (_, i) => blocks[parseInt(i)]);
+
+  if (toc.length >= 3) {
+    const minLevel = Math.min(...toc.map(h => h.level));
+    const items = toc.map(h =>
+      `<div class="wiki-toc-item" style="padding-left:${(h.level-minLevel)*14}px">
+        <a href="#${h.id}" onclick="wikiTocClick(event,'${h.id}')">${h.clean}</a>
+       </div>`
+    ).join('');
+    s = `<a id="wiki-toc-anchor"></a><div class="wiki-toc">
+      <div class="wiki-toc-hdr" onclick="this.nextElementSibling.classList.toggle('open')">
+        📋 Obsah <span style="font-size:.6rem">(${toc.length})</span>
+      </div>
+      <div class="wiki-toc-body">${items}</div>
+    </div>` + s;
+  }
+
+  return s;
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+
+function wikiInit() {
+  // Section open/close state
+  if (!_wikiSectionOpen) {
+    document.getElementById('wiki-section-body').style.display = 'none';
+    document.getElementById('wiki-section-chevron').textContent = '▶';
+  }
+
+  // Create preview panel
+  _wikiPanel = document.createElement('div');
+  _wikiPanel.id = 'wiki-preview-panel';
+  _wikiPanel.innerHTML = `
+    <div id="wiki-preview-hdr">
+      <button id="wiki-preview-close" onclick="wikiPreviewClose()">✕</button>
+      <div id="wiki-preview-title"></div>
+      <div id="wiki-preview-meta"></div>
+    </div>
+    <div id="wiki-preview-body"></div>
+    <div id="wiki-preview-footer">
+      <button class="wiki-close-btn" onclick="wikiPreviewClose()">Zavřít</button>
+    </div>`;
+  document.body.appendChild(_wikiPanel);
+  _wikiPanel.addEventListener('mouseenter', () => clearTimeout(_wikiHideTimer));
+  _wikiPanel.addEventListener('mouseleave', wikiPreviewLeave);
+
+  // Create expand modal
+  _wikiExpandModal = document.createElement('div');
+  _wikiExpandModal.id = 'wiki-expand-modal';
+  _wikiExpandModal.innerHTML = `
+    <div id="wiki-expand-modal-inner">
+      <div id="wiki-expand-modal-header">
+        <span id="wiki-expand-modal-title"></span>
+        <button id="wiki-expand-modal-close" onclick="wikiExpandClose()">✕</button>
+      </div>
+      <div id="wiki-expand-modal-body"></div>
+    </div>`;
+  document.body.appendChild(_wikiExpandModal);
+  _wikiExpandModal.addEventListener('click', e => { if (e.target === _wikiExpandModal) wikiExpandClose(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && _wikiExpandModal.classList.contains('open')) wikiExpandClose(); });
+
+  // Load wiki data
+  fetch('/api/devops/wiki')
+    .then(r => r.json())
+    .then(data => { _wikiData = data; wikiRender(); })
+    .catch(e => {
+      document.getElementById('wiki-content').innerHTML =
+        `<div style="padding:20px;color:#f97316">Chyba načítání wiki: ${e.message}</div>`;
+    });
+}
+</script>
+</body>
+</html>
