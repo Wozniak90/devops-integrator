@@ -6,7 +6,8 @@ const fs      = require('fs');
 const PORT         = process.env.PORT || 4242;
 const DATA_DIR     = path.join(__dirname, 'data');
 const CONFIG_PATH  = path.join(DATA_DIR, 'devops-config.json');
-const NOTES_PATH   = path.join(DATA_DIR, 'devops-notes.json');
+const NOTES_PATH     = path.join(DATA_DIR, 'devops-notes.json');
+const AI_CONFIG_PATH = path.join(DATA_DIR, 'ai-config.json');
 
 const app = express();
 app.use(express.json());
@@ -25,6 +26,61 @@ function readNotes() {
 }
 function writeNotes(notes) {
   fs.writeFileSync(NOTES_PATH, JSON.stringify(notes, null, 2), 'utf8');
+}
+
+// ── AI Feature config ─────────────────────────────────────────────────────────
+
+const DEFAULT_AI_CONFIG = {
+  priorityScore: {
+    enabled: true,
+    weights: {
+      stalenessFactor: 2,    // points per stale day
+      stalenessCap:    30,   // max points from staleness
+      priority: { '1': 25, '2': 15, '3': 8, '4': 2 },
+      type:     { 'Bug': 15, 'User Story': 5, 'Task': 5, 'Feature': 3, 'Epic': -5, 'Test Case': 0 },
+      status:   { 'Active': 10, 'In Progress': 10, 'New': 5, 'Resolved': -5 }
+    }
+  },
+  staleDetector: {
+    enabled:     true,
+    warningDays: 5,   // yellow badge
+    staleDays:   14   // red badge + 🧊
+  }
+};
+
+function deepMerge(base, override) {
+  const result = { ...base };
+  for (const key of Object.keys(override)) {
+    const bv = base[key], ov = override[key];
+    if (ov !== null && typeof ov === 'object' && !Array.isArray(ov) &&
+        bv !== null && typeof bv === 'object' && !Array.isArray(bv)) {
+      result[key] = deepMerge(bv, ov);
+    } else {
+      result[key] = ov;
+    }
+  }
+  return result;
+}
+
+function readAIConfig() {
+  try { return deepMerge(DEFAULT_AI_CONFIG, JSON.parse(fs.readFileSync(AI_CONFIG_PATH, 'utf8'))); }
+  catch { return DEFAULT_AI_CONFIG; }
+}
+
+function writeAIConfig(cfg) {
+  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+  fs.writeFileSync(AI_CONFIG_PATH, JSON.stringify(cfg, null, 2), 'utf8');
+}
+
+function calcPriorityScore(staleDays, priority, type, state, aiCfg) {
+  if (!aiCfg.priorityScore.enabled) return null;
+  const w = aiCfg.priorityScore.weights;
+  let score = 0;
+  score += Math.min(staleDays * w.stalenessFactor, w.stalenessCap);
+  score += w.priority[String(priority)] ?? 5;
+  score += w.type[type]   ?? 0;
+  score += w.status[state] ?? 0;
+  return Math.max(0, Math.min(100, Math.round(score)));
 }
 
 // ── DevOps fetch helper ───────────────────────────────────────────────────
@@ -156,6 +212,7 @@ async function fetchItems(cfg, forceRefresh = false) {
   const cacheMs = (cfg.cacheMinutes || 5) * 60 * 1000;
   if (!forceRefresh && _cache && (now - _cacheTime) < cacheMs) return _cache;
 
+  const aiCfg = readAIConfig();
   const base = `https://dev.azure.com/${cfg.organization}`;
   const assignedIdSet = new Set();
   const activityIdSet = new Set();
@@ -186,22 +243,40 @@ async function fetchItems(cfg, forceRefresh = false) {
     const details = await devopsFetch(cfg, `${base}/_apis/wit/workitems?ids=${allIds.join(',')}&fields=${FIELDS}&api-version=7.1`)
       .catch(() => ({ value: [] }));
 
-    const makeItem = item => ({
-      id: item.id,
-      project: item.fields['System.TeamProject'],
-      projectLabel: (cfg.projects || []).find(p => p.name === item.fields['System.TeamProject'])?.shortLabel || item.fields['System.TeamProject'],
-      projectColor: (cfg.projects || []).find(p => p.name === item.fields['System.TeamProject'])?.color || '#555',
-      url: `https://dev.azure.com/${cfg.organization}/${encodeURIComponent(item.fields['System.TeamProject'])}/_workitems/edit/${item.id}`,
-      title:        item.fields['System.Title'],
-      state:        item.fields['System.State'],
-      type:         item.fields['System.WorkItemType'],
-      priority:     item.fields['Microsoft.VSTS.Common.Priority'] || null,
-      iterationPath: item.fields['System.IterationPath'] || '',
-      areaPath:     item.fields['System.AreaPath'] || '',
-      assignedTo:   item.fields['System.AssignedTo']?.displayName || '',
-      changedDate:  item.fields['System.ChangedDate'],
-      tags:         item.fields['System.Tags'] || ''
-    });
+    const makeItem = item => {
+      const state      = item.fields['System.State'] || '';
+      const type       = item.fields['System.WorkItemType'] || '';
+      const priority   = item.fields['Microsoft.VSTS.Common.Priority'] || null;
+      const changed    = item.fields['System.ChangedDate'];
+      const staleDays  = changed
+        ? Math.floor((Date.now() - new Date(changed)) / 86400000)
+        : 0;
+      const sd = aiCfg.staleDetector;
+      const staleLevel = !sd.enabled
+        ? 'ok'
+        : staleDays >= sd.staleDays   ? 'stale'
+        : staleDays >= sd.warningDays ? 'warning'
+        : 'ok';
+      return {
+        id: item.id,
+        project: item.fields['System.TeamProject'],
+        projectLabel: (cfg.projects || []).find(p => p.name === item.fields['System.TeamProject'])?.shortLabel || item.fields['System.TeamProject'],
+        projectColor: (cfg.projects || []).find(p => p.name === item.fields['System.TeamProject'])?.color || '#555',
+        url: `https://dev.azure.com/${cfg.organization}/${encodeURIComponent(item.fields['System.TeamProject'])}/_workitems/edit/${item.id}`,
+        title:        item.fields['System.Title'],
+        state,
+        type,
+        priority,
+        iterationPath: item.fields['System.IterationPath'] || '',
+        areaPath:     item.fields['System.AreaPath'] || '',
+        assignedTo:   item.fields['System.AssignedTo']?.displayName || '',
+        changedDate:  changed,
+        tags:         item.fields['System.Tags'] || '',
+        staleDays,
+        staleLevel,
+        priorityScore: calcPriorityScore(staleDays, priority, type, state, aiCfg)
+      };
+    };
 
     const itemMap = {};
     for (const item of (details.value || [])) itemMap[item.id] = makeItem(item);
@@ -379,6 +454,30 @@ app.get('/api/devops/wiki/attachment', async (req, res) => {
     res.setHeader('Cache-Control', 'public, max-age=3600');
     res.send(Buffer.from(await r.arrayBuffer()));
   } catch (e) { res.status(500).end(); }
+});
+
+// ── AI config endpoints ───────────────────────────────────────────────────────
+
+app.get('/api/ai/config', (_req, res) => {
+  res.json(readAIConfig());
+});
+
+app.post('/api/ai/config', express.json(), (req, res) => {
+  try {
+    const current = readAIConfig();
+    const updated  = deepMerge(current, req.body);
+    writeAIConfig(updated);
+    _cache = null; // invalidate cache so scores recalculate
+    res.json({ ok: true, config: updated });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+app.post('/api/ai/config/reset', (_req, res) => {
+  try {
+    writeAIConfig(DEFAULT_AI_CONFIG);
+    _cache = null;
+    res.json({ ok: true, config: DEFAULT_AI_CONFIG });
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Fallback → SPA ────────────────────────────────────────────────────────
