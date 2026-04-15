@@ -2055,7 +2055,8 @@ async function openJiraSettings() {
     if (cfg.configured) {
       document.getElementById('ji-host').value     = cfg.host || '';
       document.getElementById('ji-email').value    = cfg.email || '';
-      document.getElementById('ji-token').value    = '';  // never pre-fill token
+      document.getElementById('ji-token').value    = '';
+      document.getElementById('ji-token').placeholder = '••••••• (token uložen — vlož nový jen při změně)';
       document.getElementById('ji-projects').value = (cfg.projects || []).join(', ');
       document.getElementById('ji-disable-btn').style.display = 'inline-block';
       document.getElementById('ji-delete-btn').style.display  = 'inline-block';
@@ -2108,15 +2109,20 @@ async function jiraSave() {
   const projects = document.getElementById('ji-projects').value
     .split(',').map(s => s.trim()).filter(Boolean);
 
-  if (!host || !email || !apiToken) {
-    alert('Vyplň host, email a API token');
+  if (!host || !email) {
+    alert('Vyplň host a email');
     return;
   }
+  // If token field is empty, use keepToken flag — server keeps existing token
+  const body = { host, email, projects, enabled: true };
+  if (apiToken) body.apiToken = apiToken;
+  else body.keepToken = true;
+
   try {
     const r = await fetch('/api/jira/save', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host, email, apiToken, projects, enabled: true })
+      body: JSON.stringify(body)
     });
     const d = await r.json();
     if (d.ok) {

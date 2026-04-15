@@ -502,15 +502,19 @@ app.post('/api/jira/test', async (req, res) => {
 
 // POST /api/jira/save — save Jira config
 app.post('/api/jira/save', (req, res) => {
-  const { host, email, apiToken, projects, projectColors, enabled } = req.body || {};
-  const validation = jiraProvider.validateConfig({ host, email, apiToken });
+  const { host, email, apiToken, keepToken, projects, projectColors, enabled } = req.body || {};
+
+  // If keepToken=true, use existing stored token
+  const resolvedToken = keepToken ? (readJiraConfig()?.apiToken || '') : apiToken;
+
+  const validation = jiraProvider.validateConfig({ host, email, apiToken: resolvedToken });
   if (!validation.valid) return res.status(400).json({ error: validation.error });
 
   writeJiraConfig({
     enabled: enabled !== false,
     host,
     email,
-    apiToken,
+    apiToken: resolvedToken,
     projects: projects || [],
     projectColors: projectColors || {}
   });

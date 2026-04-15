@@ -61,21 +61,23 @@ function normalizeType(issueType) {
  * @param {string} apiToken
  * @returns {Promise<Object>}
  */
-function jiraRequest(host, path, email, apiToken) {
+function jiraRequest(host, path, email, apiToken, body = null) {
   return new Promise((resolve, reject) => {
     const url = new URL(path, host);
     const auth = Buffer.from(`${email}:${apiToken}`).toString('base64');
-    const lib = url.protocol === 'https:' ? https : http;
+    const lib  = url.protocol === 'https:' ? https : http;
+    const postData = body ? JSON.stringify(body) : null;
 
     const options = {
       hostname: url.hostname,
       port: url.port || (url.protocol === 'https:' ? 443 : 80),
       path: url.pathname + url.search,
-      method: 'GET',
+      method: postData ? 'POST' : 'GET',
       headers: {
         'Authorization': `Basic ${auth}`,
         'Accept': 'application/json',
         'Content-Type': 'application/json',
+        ...(postData ? { 'Content-Length': Buffer.byteLength(postData) } : {}),
       },
     };
 
@@ -87,12 +89,13 @@ function jiraRequest(host, path, email, apiToken) {
           try { resolve(JSON.parse(data)); }
           catch (e) { reject(new Error(`Jira: JSON parse error — ${e.message}`)); }
         } else {
-          reject(new Error(`Jira API ${res.statusCode}: ${data.slice(0, 200)}`));
+          reject(new Error(`Jira API ${res.statusCode}: ${data.slice(0, 300)}`));
         }
       });
     });
 
     req.on('error', reject);
+    if (postData) req.write(postData);
     req.end();
   });
 }
@@ -148,18 +151,16 @@ module.exports = {
   async getAssignedItems(config) {
     const { host, email, apiToken, projects } = config;
 
-    // JQL: assigned to me, not done, optionally filtered by project
     const projectFilter = projects?.length
       ? ` AND project in (${projects.map(p => `"${p}"`).join(',')})`
       : '';
-    const jql = encodeURIComponent(
-      `assignee = currentUser() AND statusCategory != Done${projectFilter} ORDER BY updated DESC`
-    );
+    const jql = `assignee = currentUser() AND statusCategory != Done${projectFilter} ORDER BY updated DESC`;
 
-    const fields = 'summary,status,priority,issuetype,project,updated,assignee,sprint,customfield_10020';
-    const path = `/rest/api/3/search?jql=${jql}&fields=${fields}&maxResults=100`;
-
-    const data = await jiraRequest(host, path, email, apiToken);
+    const data = await jiraRequest(host, '/rest/api/3/search/jql', email, apiToken, {
+      jql,
+      fields: ['summary','status','priority','issuetype','project','updated','assignee','sprint','customfield_10020'],
+      maxResults: 100,
+    });
     return (data.issues || []).map(issue => mapIssue(issue, host));
   },
 
@@ -167,19 +168,18 @@ module.exports = {
     const { host, email, apiToken, projects } = config;
 
     const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
-      .toISOString().split('T')[0]; // YYYY-MM-DD
+      .toISOString().split('T')[0];
 
     const projectFilter = projects?.length
       ? ` AND project in (${projects.map(p => `"${p}"`).join(',')})`
       : '';
-    const jql = encodeURIComponent(
-      `updatedBy(currentUser()) AND updated >= "${since}"${projectFilter} ORDER BY updated DESC`
-    );
+    const jql = `updatedBy(currentUser()) AND updated >= "${since}"${projectFilter} ORDER BY updated DESC`;
 
-    const fields = 'summary,status,priority,issuetype,project,updated,assignee,sprint,customfield_10020';
-    const path = `/rest/api/3/search?jql=${jql}&fields=${fields}&maxResults=50`;
-
-    const data = await jiraRequest(host, path, email, apiToken);
+    const data = await jiraRequest(host, '/rest/api/3/search/jql', email, apiToken, {
+      jql,
+      fields: ['summary','status','priority','issuetype','project','updated','assignee','sprint','customfield_10020'],
+      maxResults: 50,
+    });
     return (data.issues || []).map(issue => mapIssue(issue, host));
   },
 
