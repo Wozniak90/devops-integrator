@@ -233,6 +233,20 @@
   .dv-changed { color: #a78bfa; font-size: 0.68rem; }
   .dv-empty   { padding: 14px; color: var(--muted); font-size: 0.8rem; text-align: center; }
 
+  /* AI badges — stale + priority score */
+  .dv-stale-warning { font-size: 0.68rem; background: #3d2a00; color: #f6ad55;
+    border: 1px solid #b45309; border-radius: 10px; padding: 1px 6px; font-weight: 700; }
+  .dv-stale-stale   { font-size: 0.68rem; background: #0e2035; color: #63b3ed;
+    border: 1px solid #2c5282; border-radius: 10px; padding: 1px 6px; font-weight: 700; }
+  .dv-score {
+    font-size: 0.6rem; padding: 1px 6px; border-radius: 10px; font-weight: 700;
+    background: #1e1b4b; color: #a5b4fc; border: 1px solid #3730a3;
+  }
+  .dv-score.score-high   { background:#3d1a1a; color:#fc8181; border-color:#7f1d1d; }
+  .dv-score.score-med    { background:#3d2a00; color:#f6ad55; border-color:#78350f; }
+  .dv-item.is-stale   { border-left: 2px solid #2c5282; }
+  .dv-item.is-warning { border-left: 2px solid #b45309; }
+
   /* Tooltip */
   #dv-tip {
     position: fixed; z-index: 9999; max-width: 380px; pointer-events: none;
@@ -548,6 +562,7 @@
     <div class="app-header-title">DevOps Integrator</div>
     <div class="app-header-meta" id="hdr-meta"></div>
     <button class="app-header-btn" id="btn-refresh" onclick="dvRefresh(this)">🔄 Obnovit</button>
+    <button class="app-header-btn" onclick="openAiSettings()" title="AI nastavení">🤖 AI</button>
     <button class="app-header-btn" onclick="doReset()" title="Znovu spustit průvodce">⚙️ Reset</button>
   </div>
   <div class="app-body" id="app-body">
@@ -591,6 +606,19 @@
       <button class="note-delete" id="note-del-btn" onclick="noteDelete()">Smazat</button>
       <button class="note-cancel" onclick="noteClose()">Zrušit</button>
       <button class="note-save" onclick="noteSave()">Uložit</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI Settings modal -->
+<div id="ai-overlay" style="display:none;position:fixed;inset:0;z-index:10001;background:rgba(0,0,0,.6);align-items:center;justify-content:center">
+  <div id="ai-box" style="background:#1e1e2e;border:1px solid #4f46e5;border-radius:12px;padding:20px 24px;width:520px;max-width:96vw;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.7)">
+    <h4 style="margin:0 0 14px;font-size:0.92rem;color:#e2e8f0">🤖 AI nastavení <span style="color:#a0aec0;font-weight:400;font-size:0.78rem">(priority score & stale detector)</span></h4>
+    <div id="ai-form-body" style="font-size:0.8rem;color:#e2e8f0"></div>
+    <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <button onclick="aiReset()" style="padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:0.78rem;font-weight:600;background:#7f1d1d;color:#fca5a5">Reset na výchozí</button>
+      <button onclick="closeAiSettings()" style="padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:0.78rem;font-weight:600;background:#2d3748;color:#a0aec0">Zrušit</button>
+      <button onclick="aiSave()" style="padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:0.78rem;font-weight:600;background:#4f46e5;color:#fff">Uložit</button>
     </div>
   </div>
 </div>
@@ -848,19 +876,32 @@ function dvRenderItem(item, showDate = false, commentHover = false) {
   const proj    = `<span class="dv-proj-badge" style="background:${item.projectColor||'#555'}">${item.projectLabel||item.project}</span>`;
   const sprint  = dvIterLabel(item.iterationPath);
   const sprintH = sprint ? `<span class="dv-sprint">📅 ${sprint}</span>` : '';
+
+  // AI badges
+  let staleH = '';
+  if (item.staleLevel === 'stale')   staleH = `<span class="dv-stale-stale" title="${item.staleDays}d beze změny">🧊 ${item.staleDays}d</span>`;
+  else if (item.staleLevel === 'warning') staleH = `<span class="dv-stale-warning" title="${item.staleDays}d beze změny">⚠️ ${item.staleDays}d</span>`;
+
+  let scoreH = '';
+  if (item.priorityScore != null) {
+    const cls = item.priorityScore >= 60 ? 'score-high' : item.priorityScore >= 35 ? 'score-med' : '';
+    scoreH = `<span class="dv-score ${cls}" title="Priority score">⚡${item.priorityScore}</span>`;
+  }
+
   let dateH = '';
   if (showDate && item.changedDate) {
     const d = new Date(item.changedDate);
     dateH = `<span class="dv-changed">🕐 ${d.toLocaleDateString('cs-CZ',{day:'numeric',month:'numeric'})} ${d.toLocaleTimeString('cs-CZ',{hour:'2-digit',minute:'2-digit'})}</span>`;
   }
+  const staleClass = item.staleLevel === 'stale' ? ' is-stale' : item.staleLevel === 'warning' ? ' is-warning' : '';
   const cls = commentHover
-    ? `class="dv-item dv-has-comments" data-dv-id="${item.id}" data-dv-proj="${item.project}"`
-    : `class="dv-item" data-dv-id="${item.id}" data-dv-proj="${item.project}"`;
+    ? `class="dv-item dv-has-comments${staleClass}" data-dv-id="${item.id}" data-dv-proj="${item.project}"`
+    : `class="dv-item${staleClass}" data-dv-id="${item.id}" data-dv-proj="${item.project}"`;
   return `<div ${cls}>
     <span class="dv-item-icon">${dvTypeIcon(item.type)}</span>
     <div class="dv-item-body">
       <a class="dv-item-title" href="${item.url}" target="_blank" title="${item.title}">${item.title}</a>
-      <div class="dv-item-meta"><span class="dv-item-id">#${item.id}</span> ${proj}${state}${prio}${sprintH}${dateH}</div>
+      <div class="dv-item-meta"><span class="dv-item-id">#${item.id}</span> ${proj}${state}${prio}${scoreH}${staleH}${sprintH}${dateH}</div>
     </div>
   </div>`;
 }
@@ -873,7 +914,11 @@ function dvBody(data) {
   const rank = s => STATE_ORDER[(s||'').toLowerCase()] ?? 3;
   const sortItems = arr => [...arr].sort((a,b) => {
     const d = rank(a.state) - rank(b.state);
-    return d !== 0 ? d : (a.changedDate < b.changedDate ? 1 : -1);
+    if (d !== 0) return d;
+    // sort by priority score descending (higher = more urgent)
+    const ps = (b.priorityScore || 0) - (a.priorityScore || 0);
+    if (ps !== 0) return ps;
+    return (a.changedDate < b.changedDate ? 1 : -1);
   });
   const areaKey = item => { const p = (item.areaPath||'').split('\\'); return p[p.length-1] || item.project || '—'; };
 
@@ -1673,6 +1718,104 @@ function wikiInit() {
       document.getElementById('wiki-content').innerHTML =
         `<div style="padding:20px;color:#f97316">Chyba načítání wiki: ${e.message}</div>`;
     });
+}
+
+// ── AI Settings ────────────────────────────────────────────────────────────
+let _aiCfg = null;
+
+async function openAiSettings() {
+  const overlay = document.getElementById('ai-overlay');
+  overlay.style.display = 'flex';
+  const body = document.getElementById('ai-form-body');
+  body.innerHTML = '<div style="color:#a0aec0;padding:10px 0">Načítám…</div>';
+  try {
+    _aiCfg = await fetch('/api/ai/config').then(r => r.json());
+    body.innerHTML = aiFormHtml(_aiCfg);
+  } catch(e) {
+    body.innerHTML = `<div style="color:#fc8181">Chyba: ${e.message}</div>`;
+  }
+}
+
+function closeAiSettings() {
+  document.getElementById('ai-overlay').style.display = 'none';
+}
+
+function aiFormHtml(cfg) {
+  const s = cfg.staleDetector || {};
+  const p = cfg.priorityScore || {};
+  const pw = p.weights || {};
+  const prio = pw.priority || {};
+  const type = pw.type || {};
+  const state = pw.state || {};
+  return `
+  <div style="display:grid;gap:10px">
+    <div style="font-weight:700;color:#a5b4fc;margin-top:4px">🧊 Stale Detector</div>
+    ${aiRow('Varování po (dny)', 'stale_warning', s.warningDays ?? 5)}
+    ${aiRow('Stale po (dny)', 'stale_stale', s.staleDays ?? 14)}
+
+    <div style="font-weight:700;color:#a5b4fc;margin-top:8px">⚡ Priority Score — váhy</div>
+    <div style="color:#a0aec0;font-size:0.72rem">Staleness cap (max bodů za stáří)</div>
+    ${aiRow('Stale cap', 'ps_staleCap', p.stalenessCap ?? 30)}
+    ${aiRow('Bodů za den stáří', 'ps_stalePerDay', p.stalenessPerDay ?? 2)}
+
+    <div style="color:#a0aec0;font-size:0.72rem;margin-top:4px">Priorita (P1–P4)</div>
+    ${aiRow('P1', 'pw_p1', prio['1'] ?? 25)}
+    ${aiRow('P2', 'pw_p2', prio['2'] ?? 15)}
+    ${aiRow('P3', 'pw_p3', prio['3'] ?? 8)}
+    ${aiRow('P4', 'pw_p4', prio['4'] ?? 2)}
+
+    <div style="color:#a0aec0;font-size:0.72rem;margin-top:4px">Typ (Bug, Story, Task, Feature)</div>
+    ${aiRow('Bug', 'pw_bug', type.bug ?? 15)}
+    ${aiRow('Story', 'pw_story', type.story ?? 5)}
+    ${aiRow('Task', 'pw_task', type.task ?? 3)}
+    ${aiRow('Feature', 'pw_feature', type.feature ?? 4)}
+
+    <div style="color:#a0aec0;font-size:0.72rem;margin-top:4px">Stav (Active, New)</div>
+    ${aiRow('Active', 'pw_active', state.active ?? 10)}
+    ${aiRow('New', 'pw_new', state.new ?? 5)}
+  </div>`;
+}
+
+function aiRow(label, id, val) {
+  return `<div style="display:flex;align-items:center;gap:10px">
+    <label style="width:160px;color:#cbd5e0;font-size:0.78rem">${label}</label>
+    <input id="ai-${id}" type="number" value="${val}" min="0" max="100"
+      style="width:70px;background:#13131f;border:1px solid #333;border-radius:5px;color:#e2e8f0;font-size:0.8rem;padding:4px 8px">
+  </div>`;
+}
+
+function aiVal(id) { return Number(document.getElementById('ai-' + id)?.value ?? 0); }
+
+async function aiSave() {
+  const cfg = {
+    staleDetector: {
+      warningDays: aiVal('stale_warning'),
+      staleDays:   aiVal('stale_stale')
+    },
+    priorityScore: {
+      stalenessCap:     aiVal('ps_staleCap'),
+      stalenessPerDay:  aiVal('ps_stalePerDay'),
+      weights: {
+        priority: { '1': aiVal('pw_p1'), '2': aiVal('pw_p2'), '3': aiVal('pw_p3'), '4': aiVal('pw_p4') },
+        type:     { bug: aiVal('pw_bug'), story: aiVal('pw_story'), task: aiVal('pw_task'), feature: aiVal('pw_feature') },
+        state:    { active: aiVal('pw_active'), new: aiVal('pw_new') }
+      }
+    }
+  };
+  try {
+    await fetch('/api/ai/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) });
+    closeAiSettings();
+    dvRefresh(document.getElementById('btn-refresh'));
+  } catch(e) {
+    alert('Chyba při ukládání: ' + e.message);
+  }
+}
+
+async function aiReset() {
+  if (!confirm('Resetovat AI nastavení na výchozí hodnoty?')) return;
+  await fetch('/api/ai/config/reset', { method: 'POST' });
+  closeAiSettings();
+  dvRefresh(document.getElementById('btn-refresh'));
 }
 </script>
 </body>
