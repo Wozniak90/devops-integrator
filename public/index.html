@@ -137,6 +137,49 @@
   }
   .app-header-btn:hover { color: var(--text); }
 
+  /* Filter bar */
+  .filter-bar {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 8px 20px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    position: sticky; top: 49px; z-index: 99;
+  }
+  .filter-group { display: flex; align-items: center; gap: 4px; }
+  .filter-label { font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+  .filter-chip {
+    padding: 2px 9px; border-radius: 10px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--muted); cursor: pointer;
+    font-size: 0.7rem; font-weight: 600; transition: all .12s; white-space: nowrap;
+  }
+  .filter-chip:hover { border-color: #6366f1; color: var(--text); }
+  .filter-chip.active { background: #312e81; border-color: #6366f1; color: #a5b4fc; }
+  .filter-chip.fc-stale   { background:#0e2035; border-color:#2c5282; color:#63b3ed; }
+  .filter-chip.fc-warning { background:#3d2a00; border-color:#b45309; color:#f6ad55; }
+  .filter-chip.fc-p1 { color:#fc8181; }
+  .filter-chip.fc-p1.active { background:#3d1a1a; border-color:#7f1d1d; color:#fc8181; }
+  .filter-chip.fc-p2 { color:#f6ad55; }
+  .filter-chip.fc-p2.active { background:#3d2a00; border-color:#78350f; color:#f6ad55; }
+  .filter-search {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 0.75rem; padding: 3px 10px; width: 180px;
+    outline: none; transition: border .12s;
+  }
+  .filter-search:focus { border-color: #6366f1; }
+  .filter-sep { width: 1px; height: 18px; background: var(--border); flex-shrink: 0; }
+  .filter-clear-btn {
+    padding: 2px 9px; border-radius: 10px; border: 1px solid #7f1d1d;
+    background: #3d1a1a; color: #fca5a5; cursor: pointer; font-size: 0.7rem; font-weight: 600;
+  }
+  .filter-count-badge {
+    background: #4f46e5; color: #fff; border-radius: 8px;
+    padding: 0 5px; font-size: 0.6rem; font-weight: 700;
+  }
+  .filter-proj-sel {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+    color: var(--text); font-size: 0.72rem; padding: 3px 8px; cursor: pointer; outline: none;
+    transition: border .12s; max-width: 150px;
+  }
+  .filter-proj-sel:focus { border-color: #6366f1; }
+
   .app-body { padding: 16px 20px; max-width: 1600px; margin: 0 auto; }
 
   /* ── DevOps widget styles (same as dashboard) ─────────────────────── */
@@ -565,6 +608,49 @@
     <button class="app-header-btn" onclick="openAiSettings()" title="AI nastavení">🤖 AI</button>
     <button class="app-header-btn" onclick="doReset()" title="Znovu spustit průvodce">⚙️ Reset</button>
   </div>
+  <!-- Filter bar — stays outside #app-body so it survives render() -->
+  <div class="filter-bar" id="filter-bar" style="display:none">
+    <input class="filter-search" id="flt-search" type="search" placeholder="🔍 Hledat…" oninput="filterApply()">
+    <div class="filter-sep"></div>
+    <div class="filter-group">
+      <span class="filter-label">Stav</span>
+      <button class="filter-chip" data-flt="state" data-val="active"   onclick="filterToggle(this)">Active</button>
+      <button class="filter-chip" data-flt="state" data-val="new"      onclick="filterToggle(this)">New</button>
+      <button class="filter-chip" data-flt="state" data-val="resolved" onclick="filterToggle(this)">Resolved</button>
+    </div>
+    <div class="filter-sep"></div>
+    <div class="filter-group">
+      <span class="filter-label">Priorita</span>
+      <button class="filter-chip fc-p1" data-flt="prio" data-val="1" onclick="filterToggle(this)">P1</button>
+      <button class="filter-chip fc-p2" data-flt="prio" data-val="2" onclick="filterToggle(this)">P2</button>
+      <button class="filter-chip"       data-flt="prio" data-val="3" onclick="filterToggle(this)">P3</button>
+      <button class="filter-chip"       data-flt="prio" data-val="4" onclick="filterToggle(this)">P4</button>
+    </div>
+    <div class="filter-sep"></div>
+    <div class="filter-group">
+      <span class="filter-label">Stale</span>
+      <button class="filter-chip fc-warning" data-flt="stale" data-val="warning" onclick="filterToggle(this)">⚠️ Var.</button>
+      <button class="filter-chip fc-stale"   data-flt="stale" data-val="stale"   onclick="filterToggle(this)">🧊 Stale</button>
+    </div>
+    <div class="filter-sep"></div>
+    <div class="filter-group">
+      <span class="filter-label">Projekt</span>
+      <select class="filter-proj-sel" id="flt-proj" onchange="filterApply()">
+        <option value="">Vše</option>
+      </select>
+    </div>
+    <div class="filter-sep"></div>
+    <div class="filter-group">
+      <span class="filter-label">Typ</span>
+      <button class="filter-chip" data-flt="type" data-val="Bug"        onclick="filterToggle(this)">🐛 Bug</button>
+      <button class="filter-chip" data-flt="type" data-val="User Story" onclick="filterToggle(this)">📖 Story</button>
+      <button class="filter-chip" data-flt="type" data-val="Task"       onclick="filterToggle(this)">📋 Task</button>
+      <button class="filter-chip" data-flt="type" data-val="Feature"    onclick="filterToggle(this)">🎯 Feature</button>
+    </div>
+    <div style="flex:1"></div>
+    <span class="filter-count-badge" id="flt-badge" style="display:none"></span>
+    <button class="filter-clear-btn" id="flt-clear" onclick="filterClear()" style="display:none">✕ Zrušit filtry</button>
+  </div>
   <div class="app-body" id="app-body">
     <div class="dv-empty">Načítám data… <span class="spin">⏳</span></div>
   </div>
@@ -821,6 +907,8 @@ async function doReset() {
 async function loadAll() {
   try { _notes = await fetch('/api/devops/notes').then(r => r.json()); } catch { _notes = {}; }
   try { _data = await fetch('/api/devops/items').then(r => r.json()); } catch (e) { _data = { error: e.message }; }
+  filterRebuildProjects();
+  document.getElementById('filter-bar').style.display = 'flex';
   render();
 }
 
@@ -833,12 +921,87 @@ function render() {
   }
 }
 
+// ── Filters ────────────────────────────────────────────────────────────────
+const _flt = {
+  search: '',
+  state:  new Set(),
+  prio:   new Set(),
+  stale:  new Set(),
+  type:   new Set(),
+  proj:   ''
+};
+
+function filterToggle(btn) {
+  const key = btn.dataset.flt, val = btn.dataset.val;
+  if (_flt[key].has(val)) { _flt[key].delete(val); btn.classList.remove('active'); }
+  else                    { _flt[key].add(val);    btn.classList.add('active'); }
+  filterApply();
+}
+
+function filterApply() {
+  _flt.search = (document.getElementById('flt-search')?.value || '').toLowerCase();
+  _flt.proj   = document.getElementById('flt-proj')?.value || '';
+  render();
+  filterUpdateBadge();
+}
+
+function filterClear() {
+  _flt.search = ''; _flt.proj = '';
+  _flt.state.clear(); _flt.prio.clear(); _flt.stale.clear(); _flt.type.clear();
+  document.querySelectorAll('.filter-chip.active').forEach(b => b.classList.remove('active'));
+  const si = document.getElementById('flt-search'); if (si) si.value = '';
+  const pi = document.getElementById('flt-proj');   if (pi) pi.value = '';
+  render();
+  filterUpdateBadge();
+}
+
+function filterUpdateBadge() {
+  const n = _flt.state.size + _flt.prio.size + _flt.stale.size + _flt.type.size +
+            (_flt.search ? 1 : 0) + (_flt.proj ? 1 : 0);
+  const badge = document.getElementById('flt-badge');
+  const btn   = document.getElementById('flt-clear');
+  if (badge) { badge.textContent = n; badge.style.display = n ? 'inline' : 'none'; }
+  if (btn)   { btn.style.display = n ? 'inline-block' : 'none'; }
+}
+
+function filterMatch(item) {
+  if (_flt.search && !item.title.toLowerCase().includes(_flt.search)) return false;
+  if (_flt.proj   && item.project !== _flt.proj) return false;
+  if (_flt.state.size) {
+    const sl = (item.state || '').toLowerCase();
+    const match = [..._flt.state].some(v => {
+      if (v === 'active')   return sl === 'active' || sl === 'in progress';
+      if (v === 'new')      return sl === 'new' || sl === 'to do';
+      if (v === 'resolved') return sl === 'resolved' || sl === 'done' || sl === 'closed';
+      return false;
+    });
+    if (!match) return false;
+  }
+  if (_flt.prio.size  && !_flt.prio.has(String(item.priority)))    return false;
+  if (_flt.stale.size && !_flt.stale.has(item.staleLevel))         return false;
+  if (_flt.type.size  && !_flt.type.has(item.type))                return false;
+  return true;
+}
+
+function filterRebuildProjects() {
+  const sel = document.getElementById('flt-proj');
+  if (!sel || !_data) return;
+  const projs = new Set();
+  for (const arr of [_data.assigned||[], _data.activity||[], _data.following||[]]) {
+    for (const i of arr) if (i.project) projs.add(i.project);
+  }
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">Vše</option>' +
+    [...projs].sort().map(p => `<option value="${p}"${p===cur?' selected':''}>${p}</option>`).join('');
+}
+
 async function dvRefresh(btn) {
   btn.textContent = '⏳';
   try {
     _notes = await fetch('/api/devops/notes').then(r => r.json());
     _data  = await fetch('/api/devops/items?refresh=1').then(r => r.json());
     _ccache = {};
+    filterRebuildProjects();
     render();
   } finally { btn.textContent = '🔄 Obnovit'; }
 }
@@ -922,9 +1085,21 @@ function dvBody(data) {
   });
   const areaKey = item => { const p = (item.areaPath||'').split('\\'); return p[p.length-1] || item.project || '—'; };
 
-  const assigned = data.assigned || [];
-  const activity = data.activity || [];
-  const following = data.following || [];
+  const hasActiveFilters = () => _flt.state.size || _flt.prio.size || _flt.stale.size ||
+    _flt.type.size || _flt.search || _flt.proj;
+
+  const applyF = arr => hasActiveFilters() ? arr.filter(filterMatch) : arr;
+
+  const allAssigned  = data.assigned  || [];
+  const allActivity  = data.activity  || [];
+  const allFollowing = data.following || [];
+
+  const assigned  = applyF(allAssigned);
+  const activity  = applyF(allActivity);
+  const following = applyF(allFollowing);
+
+  const countLabel = (filtered, total) =>
+    filtered.length < total ? `${filtered.length}/${total}` : `${total}`;
 
   const sections = {
     assigned: () => {
@@ -932,7 +1107,7 @@ function dvBody(data) {
       let h = `<div class="dv-sec" id="sec-assigned" draggable="true" data-sec="assigned">
         <div class="dv-section-hdr dv-section-hdr-drag">
           <span class="dv-drag-handle" title="Přetáhni pro změnu pořadí">⠿</span>
-          <span class="dv-sec-title">👤 Přiřazeno mně (${assigned.length})</span>
+          <span class="dv-sec-title">👤 Přiřazeno mně (${countLabel(assigned, allAssigned.length)})</span>
           <button class="dv-collapse-btn" data-sec="assigned" title="${collapsed?'Rozbalit':'Sbalit'}">${collapsed?'▶':'▼'}</button>
         </div>`;
       if (!collapsed) {
@@ -943,7 +1118,7 @@ function dvBody(data) {
           ).join('')}
         </div>`;
         if (!assigned.length) {
-          h += `<div class="dv-empty">Žádné přiřazené itemy ✓</div>`;
+          h += `<div class="dv-empty">${allAssigned.length ? '🔍 Žádné výsledky pro aktuální filtr' : 'Žádné přiřazené itemy ✓'}</div>`;
         } else {
           const groups = {};
           for (const item of assigned) { const k = areaKey(item); (groups[k] = groups[k]||[]).push(item); }
@@ -965,12 +1140,12 @@ function dvBody(data) {
       let h = `<div class="dv-sec" id="sec-activity" draggable="true" data-sec="activity">
         <div class="dv-section-hdr dv-section-hdr-drag">
           <span class="dv-drag-handle" title="Přetáhni pro změnu pořadí">⠿</span>
-          <span class="dv-sec-title">💬 Moje aktivita (${activity.length})</span>
+          <span class="dv-sec-title">💬 Moje aktivita (${countLabel(activity, allActivity.length)})</span>
           <button class="dv-collapse-btn" data-sec="activity" title="${collapsed?'Rozbalit':'Sbalit'}">${collapsed?'▶':'▼'}</button>
         </div>`;
       if (!collapsed) {
         if (!activity.length) {
-          h += `<div class="dv-empty">Žádná nedávná aktivita</div>`;
+          h += `<div class="dv-empty">${allActivity.length ? '🔍 Žádné výsledky pro aktuální filtr' : 'Žádná nedávná aktivita'}</div>`;
         } else {
           const sorted = [...activity].sort((a,b) => new Date(b.changedDate) - new Date(a.changedDate));
           const col1 = sorted.slice(0, 5), col2 = sorted.slice(5, 10);
@@ -989,12 +1164,12 @@ function dvBody(data) {
       let h = `<div class="dv-sec" id="sec-following" draggable="true" data-sec="following">
         <div class="dv-section-hdr dv-section-hdr-drag">
           <span class="dv-drag-handle" title="Přetáhni pro změnu pořadí">⠿</span>
-          <span class="dv-sec-title">👁️ Sleduji (${following.length})</span>
+          <span class="dv-sec-title">👁️ Sleduji (${countLabel(following, allFollowing.length)})</span>
           <button class="dv-collapse-btn" data-sec="following" title="${collapsed?'Rozbalit':'Sbalit'}">${collapsed?'▶':'▼'}</button>
         </div>`;
       if (!collapsed) {
         if (!following.length) {
-          h += `<div class="dv-empty">Žádné sledované itemy</div>`;
+          h += `<div class="dv-empty">${allFollowing.length ? '🔍 Žádné výsledky pro aktuální filtr' : 'Žádné sledované itemy'}</div>`;
         } else {
           const groups = {};
           for (const item of following) { const k = areaKey(item); (groups[k] = groups[k]||[]).push(item); }
