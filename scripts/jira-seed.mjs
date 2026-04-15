@@ -144,11 +144,21 @@ async function addComment(issueKey, text) {
   });
 }
 
+// Aliases for status matching (EN + CS)
+const STATUS_ALIASES = {
+  'progress':     ['progress', 'probíhající', 'in progress', 'rozpracováno', 'in-progress'],
+  'done':         ['done', 'hotovo', 'closed', 'complete', 'dokončeno'],
+  'todo':         ['todo', 'úkoly', 'to do', 'open', 'new'],
+};
+
 async function transitionIssue(issueKey, statusName) {
   const r = await get(`/rest/api/3/issue/${issueKey}/transitions`);
+  const aliases = STATUS_ALIASES[statusName.toLowerCase()] || [statusName.toLowerCase()];
   const transition = r.body?.transitions?.find(t =>
-    t.name.toLowerCase().includes(statusName.toLowerCase()) ||
-    t.to?.name.toLowerCase().includes(statusName.toLowerCase())
+    aliases.some(a =>
+      t.name.toLowerCase().includes(a) ||
+      (t.to?.name || '').toLowerCase().includes(a)
+    )
   );
   if (!transition) {
     log(`   ℹ️  Přechod "${statusName}" u ${issueKey} nenalezen (dostupné: ${r.body?.transitions?.map(t=>t.name).join(', ')})`);
