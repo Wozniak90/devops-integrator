@@ -1,0 +1,26 @@
+name: devops-integrator
+description: |
+  Standalone webová aplikace pro přehled Azure DevOps work itemů (V1 stable).
+  V2 rozšiřuje o multi-provider architekturu — Jira, GitHub Issues, GitLab, Linear a další.
+  Cíl: jeden lokální dashboard pro všechny PM nástroje, bez cloudu, pouze read-only API.
+
+stack:
+  - Node.js 22+ / Express 5
+  - Vanilla JS SPA (žádný framework) — monolitický public/index.html
+  - MCP server (@modelcontextprotocol/sdk + zod)
+
+structure:
+  - server.js           # V1 Express backend (stabilní)
+  - public/index.html   # V1 SPA — wizard + dashboard
+  - mcp-server.mjs      # MCP server pro AI integraci
+  - V2/                 # WIP — multi-provider architektura
+  - V2/providers/       # Každý PM nástroj = samostatný provider modul
+  - data/               # Runtime data (gitignored): devops-config.json, devops-notes.json
+
+conventions:
+  - Komentáře piš česky
+  - Každý V2 provider implementuje rozhraní z V2/README.md (getAssignedItems, getMyActivity, validateConfig)
+  - Vzorový provider: V2/providers/azure-devops.js
+  - V1 neupravuj bez nutnosti — je stabilní a používaný
+  - data/ je gitignored — nikdy necommituj PAT tokeny
+  - Port: 4242 (default)

@@ -1,0 +1,18 @@
+name: Implementuj feature
+description: Přidání nové funkcionality
+
+prompt: |
+  Implementuj následující feature do devops-integrator:
+
+  {{feature_description}}
+
+  Kontext kde přidat:
+  {{target_area}}
+
+  Drž se stávajícího stylu kódu. Nenarušuj V1 stabilitu pokud cílem není V1.
+
+inputs:
+  - name: feature_description
+    description: Co má feature dělat, vstupy, výstupy, edge cases
+  - name: target_area
+    description: "V1 backend, V1 UI, V2 provider, MCP server, ..."

@@ -1,0 +1,16 @@
+name: Oprav bug
+description: Analýza a oprava nahlášené chyby
+
+prompt: |
+  Analyzuj a oprav následující problém:
+
+  {{bug_description}}
+
+  Pravidla:
+  - V1 (server.js + public/index.html) je stabilní — nenarušuj funkčnost
+  - V2/ je WIP — změny v V2/ jsou OK
+  - data/ je gitignored — nikdy necommituj config s PAT tokeny
+
+inputs:
+  - name: bug_description
+    description: Popis chyby, kde se projevuje a jak ji reprodukovat

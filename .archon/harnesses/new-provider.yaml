@@ -1,0 +1,28 @@
+name: Implementuj nový V2 provider
+description: Vytvoří nový PM provider dle rozhraní z V2/README.md
+
+prompt: |
+  Implementuj nový provider pro {{provider_name}} do souboru V2/providers/{{provider_id}}.js.
+
+  Povinné rozhraní (z V2/README.md):
+  - module.exports = { id, name, icon, getAssignedItems(config), getMyActivity(config, days), validateConfig(config) }
+  - Každá metoda vrací Promise<WorkItem[]>, WorkItem schema viz V2/README.md
+
+  Prostuduj vzorový provider V2/providers/azure-devops.js — drž se stejného stylu.
+
+  Config schema pro {{provider_name}}:
+  {{provider_config_schema}}
+
+  API dokumentace: {{api_docs_url}}
+
+  Po implementaci přidej provider do V2/providers/index.js (pokud existuje), jinak ho vytvoř.
+
+inputs:
+  - name: provider_name
+    description: Název PM nástroje (např. "Jira Cloud")
+  - name: provider_id
+    description: Lowercase ID bez mezer (např. "jira")
+  - name: provider_config_schema
+    description: Popis potřebné konfigurace (host, email, token, projects...)
+  - name: api_docs_url
+    description: URL API dokumentace
