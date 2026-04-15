@@ -9,6 +9,9 @@ const CONFIG_PATH  = path.join(DATA_DIR, 'devops-config.json');
 const NOTES_PATH     = path.join(DATA_DIR, 'devops-notes.json');
 const AI_CONFIG_PATH = path.join(DATA_DIR, 'ai-config.json');
 
+// Jira provider (V2 architecture)
+const jiraProvider = require('./V2/providers/jira');
+
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
@@ -296,6 +299,103 @@ async function fetchItems(cfg, forceRefresh = false) {
   return _cache;
 }
 
+// ── Jira: normalize V2 WorkItem → V1 item shape ───────────────────────────
+function jiraItemToV1(item, aiCfg) {
+  const changedDate = item.updatedAt instanceof Date
+    ? item.updatedAt.toISOString()
+    : (item.updatedAt || new Date().toISOString());
+  const staleDays  = Math.floor((Date.now() - new Date(changedDate)) / 86400000);
+  const sd = aiCfg.staleDetector;
+  const staleLevel = !sd.enabled ? 'ok'
+    : staleDays >= sd.staleDays   ? 'stale'
+    : staleDays >= sd.warningDays ? 'warning'
+    : 'ok';
+  // Map V2 type back to display string
+  const typeMap = { bug: 'Bug', story: 'User Story', task: 'Task', epic: 'Epic', other: 'Task' };
+  const type = typeMap[item.type] || item.type || 'Task';
+  return {
+    id:           item.id,           // e.g. "ABC-123"
+    provider:     'jira',
+    project:      item.project || '',
+    projectLabel: item.project || '',
+    projectColor: item._projectColor || '#0052cc',  // Jira blue default
+    url:          item.url,
+    title:        item.title,
+    state:        item.status,       // already normalized: active/new/resolved
+    type,
+    priority:     item.priority,     // already 1-4
+    iterationPath: item.sprint || '',
+    areaPath:     item.project || '',
+    assignedTo:   item.assignee || '',
+    changedDate,
+    tags:         '',
+    staleDays,
+    staleLevel,
+    priorityScore: calcPriorityScore(staleDays, item.priority, type, item.status, aiCfg)
+  };
+}
+
+// ── Jira config helpers ────────────────────────────────────────────────────
+function readJiraConfig() {
+  const cfg = readConfig();
+  return cfg?.jira || null;
+}
+
+function writeJiraConfig(jiraCfg) {
+  const cfg = readConfig() || {};
+  cfg.jira = jiraCfg;
+  writeConfig(cfg);
+}
+
+// ── fetchItemsWithJira: merged Azure + Jira ───────────────────────────────
+async function fetchAllItems(cfg, forceRefresh = false) {
+  const azureData = await fetchItems(cfg, forceRefresh);
+  const jiraCfg   = cfg.jira;
+
+  if (!jiraCfg?.enabled) return azureData;
+
+  const aiCfg = readAIConfig();
+  try {
+    const [jiraAssigned, jiraActivity] = await Promise.all([
+      jiraProvider.getAssignedItems(jiraCfg).catch(e => { console.error('[jira] getAssignedItems:', e.message); return []; }),
+      jiraProvider.getMyActivity(jiraCfg, cfg.activityDays || 14).catch(e => { console.error('[jira] getMyActivity:', e.message); return []; })
+    ]);
+
+    // Assign project colors from jiraCfg.projectColors if configured
+    const colorMap = jiraCfg.projectColors || {};
+    const toV1 = item => {
+      const v1 = jiraItemToV1(item, aiCfg);
+      v1.projectColor = colorMap[item.project] || '#0052cc';
+      return v1;
+    };
+
+    const assignedV1  = jiraAssigned.map(toV1);
+    const activityV1  = jiraActivity.map(toV1);
+
+    // Build assigned ID set to avoid duplicates in activity
+    const assignedIds = new Set([
+      ...azureData.assigned.map(i => String(i.id)),
+      ...assignedV1.map(i => String(i.id))
+    ]);
+
+    // Merge: assigned, activity (deduplicated, sorted by date), following unchanged
+    const mergedAssigned = [...azureData.assigned, ...assignedV1];
+    const mergedActivity = [
+      ...azureData.activity,
+      ...activityV1.filter(i => !assignedIds.has(String(i.id)))
+    ].sort((a, b) => new Date(b.changedDate) - new Date(a.changedDate)).slice(0, 20);
+
+    return {
+      ...azureData,
+      assigned: mergedAssigned,
+      activity: mergedActivity,
+    };
+  } catch (e) {
+    console.error('[jira] merge error:', e.message);
+    return azureData;
+  }
+}
+
 // ── Setup endpoints ───────────────────────────────────────────────────────
 
 // GET /api/setup/status — is app configured?
@@ -357,13 +457,90 @@ app.post('/api/setup/reset', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Jira endpoints ────────────────────────────────────────────────────────
+
+// GET /api/jira/config — return Jira config (token masked)
+app.get('/api/jira/config', (req, res) => {
+  const jira = readJiraConfig();
+  if (!jira) return res.json({ configured: false });
+  const { apiToken, ...safe } = jira;
+  res.json({ configured: true, ...safe, apiToken: apiToken ? '***' : '' });
+});
+
+// POST /api/jira/test — verify Jira credentials
+app.post('/api/jira/test', async (req, res) => {
+  const { host, email, apiToken } = req.body || {};
+  const validation = jiraProvider.validateConfig({ host, email, apiToken });
+  if (!validation.valid) return res.status(400).json({ error: validation.error });
+
+  try {
+    // Try fetching current user to validate credentials
+    const url  = new URL('/rest/api/3/myself', host);
+    const auth = Buffer.from(`${email}:${apiToken}`).toString('base64');
+    const r = await fetch(url.toString(), {
+      headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' }
+    });
+    if (!r.ok) {
+      const t = await r.text();
+      return res.status(401).json({ error: `Ověření selhalo (${r.status}). Zkontroluj host, email a API token.` });
+    }
+    const me = await r.json();
+    // Also fetch project list
+    const pr = await fetch(new URL('/rest/api/3/project?maxResults=50', host).toString(), {
+      headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' }
+    });
+    const projects = pr.ok ? await pr.json() : [];
+    res.json({
+      ok: true,
+      displayName: me.displayName || me.name || email,
+      projects: (Array.isArray(projects) ? projects : []).map(p => ({ key: p.key, name: p.name }))
+    });
+  } catch (e) {
+    res.status(500).json({ error: `Chyba připojení: ${e.message}` });
+  }
+});
+
+// POST /api/jira/save — save Jira config
+app.post('/api/jira/save', (req, res) => {
+  const { host, email, apiToken, projects, projectColors, enabled } = req.body || {};
+  const validation = jiraProvider.validateConfig({ host, email, apiToken });
+  if (!validation.valid) return res.status(400).json({ error: validation.error });
+
+  writeJiraConfig({
+    enabled: enabled !== false,
+    host,
+    email,
+    apiToken,
+    projects: projects || [],
+    projectColors: projectColors || {}
+  });
+  _cache = null;
+  res.json({ ok: true });
+});
+
+// POST /api/jira/disable — disable without deleting credentials
+app.post('/api/jira/disable', (req, res) => {
+  const jira = readJiraConfig();
+  if (jira) { jira.enabled = false; writeJiraConfig(jira); }
+  _cache = null;
+  res.json({ ok: true });
+});
+
+// DELETE /api/jira/config — remove Jira config entirely
+app.delete('/api/jira/config', (req, res) => {
+  const cfg = readConfig();
+  if (cfg) { delete cfg.jira; writeConfig(cfg); }
+  _cache = null;
+  res.json({ ok: true });
+});
+
 // ── DevOps endpoints ──────────────────────────────────────────────────────
 
 app.get('/api/devops/items', async (req, res) => {
   const cfg = readConfig();
   if (!cfg) return res.status(400).json({ error: 'Aplikace není nakonfigurována' });
   try {
-    const data = await fetchItems(cfg, req.query.refresh === '1');
+    const data = await fetchAllItems(cfg, req.query.refresh === '1');
     res.json(data);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

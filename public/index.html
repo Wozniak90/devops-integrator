@@ -606,6 +606,7 @@
     <div class="app-header-meta" id="hdr-meta"></div>
     <button class="app-header-btn" id="btn-refresh" onclick="dvRefresh(this)">🔄 Obnovit</button>
     <button class="app-header-btn" onclick="openAiSettings()" title="AI nastavení">🤖 AI</button>
+    <button class="app-header-btn" onclick="openJiraSettings()" title="Jira integrace" id="btn-jira">🟦 Jira</button>
     <button class="app-header-btn" onclick="doReset()" title="Znovu spustit průvodce">⚙️ Reset</button>
   </div>
   <!-- Filter bar — stays outside #app-body so it survives render() -->
@@ -705,6 +706,56 @@
       <button onclick="aiReset()" style="padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:0.78rem;font-weight:600;background:#7f1d1d;color:#fca5a5">Reset na výchozí</button>
       <button onclick="closeAiSettings()" style="padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:0.78rem;font-weight:600;background:#2d3748;color:#a0aec0">Zrušit</button>
       <button onclick="aiSave()" style="padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:0.78rem;font-weight:600;background:#4f46e5;color:#fff">Uložit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Jira Settings modal -->
+<div id="jira-overlay" style="display:none;position:fixed;inset:0;z-index:10002;background:rgba(0,0,0,.65);align-items:center;justify-content:center">
+  <div style="background:#1e1e2e;border:1px solid #0052cc;border-radius:12px;padding:20px 24px;width:540px;max-width:96vw;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.7)">
+    <h4 style="margin:0 0 4px;font-size:0.92rem;color:#e2e8f0">🟦 Jira integrace</h4>
+    <p style="margin:0 0 16px;font-size:0.74rem;color:#a0aec0">Jira Cloud · Basic Auth · API Token</p>
+
+    <div style="display:grid;gap:10px;font-size:0.8rem">
+      <div>
+        <label style="display:block;color:#cbd5e0;margin-bottom:3px;font-size:0.75rem">Jira host URL <span style="color:#a0aec0">(např. https://firma.atlassian.net)</span></label>
+        <input id="ji-host" type="url" placeholder="https://mycompany.atlassian.net"
+          style="width:100%;background:#13131f;border:1px solid #333;border-radius:5px;color:#e2e8f0;font-size:0.8rem;padding:5px 10px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="display:block;color:#cbd5e0;margin-bottom:3px;font-size:0.75rem">Email (Atlassian účet)</label>
+        <input id="ji-email" type="email" placeholder="user@company.com"
+          style="width:100%;background:#13131f;border:1px solid #333;border-radius:5px;color:#e2e8f0;font-size:0.8rem;padding:5px 10px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="display:block;color:#cbd5e0;margin-bottom:3px;font-size:0.75rem">
+          API Token
+          <a href="https://id.atlassian.com/manage-profile/security/api-tokens" target="_blank"
+            style="color:#60a5fa;font-size:0.68rem;margin-left:6px">→ vygenerovat token</a>
+        </label>
+        <input id="ji-token" type="password" placeholder="ATATxxxxxxxxxxxxxxx"
+          style="width:100%;background:#13131f;border:1px solid #333;border-radius:5px;color:#e2e8f0;font-size:0.8rem;padding:5px 10px;box-sizing:border-box">
+      </div>
+      <div>
+        <label style="display:block;color:#cbd5e0;margin-bottom:3px;font-size:0.75rem">
+          Projekty <span style="color:#a0aec0">(klíče oddělené čárkou, prázdné = všechny)</span>
+        </label>
+        <input id="ji-projects" type="text" placeholder="ABC, XYZ"
+          style="width:100%;background:#13131f;border:1px solid #333;border-radius:5px;color:#e2e8f0;font-size:0.8rem;padding:5px 10px;box-sizing:border-box">
+      </div>
+    </div>
+
+    <div id="ji-test-result" style="margin-top:12px;font-size:0.78rem;display:none"></div>
+
+    <div style="display:flex;gap:8px;margin-top:16px;align-items:center">
+      <button onclick="jiraTest()" style="padding:5px 14px;border-radius:5px;border:1px solid #334155;cursor:pointer;font-size:0.78rem;font-weight:600;background:#1e3a5f;color:#63b3ed">
+        🔌 Otestovat připojení
+      </button>
+      <div style="flex:1"></div>
+      <button onclick="jiraDisable()" id="ji-disable-btn" style="display:none;padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:0.78rem;font-weight:600;background:#3d2a00;color:#f6ad55">Vypnout</button>
+      <button onclick="jiraDelete()" id="ji-delete-btn" style="display:none;padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:0.78rem;font-weight:600;background:#7f1d1d;color:#fca5a5">Smazat</button>
+      <button onclick="closeJiraSettings()" style="padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:0.78rem;font-weight:600;background:#2d3748;color:#a0aec0">Zrušit</button>
+      <button onclick="jiraSave()" style="padding:5px 14px;border-radius:5px;border:none;cursor:pointer;font-size:0.78rem;font-weight:600;background:#0052cc;color:#fff">Uložit</button>
     </div>
   </div>
 </div>
@@ -1037,6 +1088,7 @@ function dvRenderItem(item, showDate = false, commentHover = false) {
   const prio    = item.priority ? `<span class="${dvPrioClass(item.priority)}">P${item.priority}</span>` : '';
   const state   = `<span class="dv-badge ${dvStateClass(item.state)}">${item.state || '?'}</span>`;
   const proj    = `<span class="dv-proj-badge" style="background:${item.projectColor||'#555'}">${item.projectLabel||item.project}</span>`;
+  const providerH = item.provider === 'jira' ? `<span style="font-size:0.65rem" title="Jira">🟦</span>` : '';
   const sprint  = dvIterLabel(item.iterationPath);
   const sprintH = sprint ? `<span class="dv-sprint">📅 ${sprint}</span>` : '';
 
@@ -1064,7 +1116,7 @@ function dvRenderItem(item, showDate = false, commentHover = false) {
     <span class="dv-item-icon">${dvTypeIcon(item.type)}</span>
     <div class="dv-item-body">
       <a class="dv-item-title" href="${item.url}" target="_blank" title="${item.title}">${item.title}</a>
-      <div class="dv-item-meta"><span class="dv-item-id">#${item.id}</span> ${proj}${state}${prio}${scoreH}${staleH}${sprintH}${dateH}</div>
+      <div class="dv-item-meta"><span class="dv-item-id">#${item.id}</span> ${providerH}${proj}${state}${prio}${scoreH}${staleH}${sprintH}${dateH}</div>
     </div>
   </div>`;
 }
@@ -1990,6 +2042,112 @@ async function aiReset() {
   if (!confirm('Resetovat AI nastavení na výchozí hodnoty?')) return;
   await fetch('/api/ai/config/reset', { method: 'POST' });
   closeAiSettings();
+  dvRefresh(document.getElementById('btn-refresh'));
+}
+
+// ── Jira Settings ──────────────────────────────────────────────────────────
+async function openJiraSettings() {
+  const overlay = document.getElementById('jira-overlay');
+  overlay.style.display = 'flex';
+  // Load existing config
+  try {
+    const cfg = await fetch('/api/jira/config').then(r => r.json());
+    if (cfg.configured) {
+      document.getElementById('ji-host').value     = cfg.host || '';
+      document.getElementById('ji-email').value    = cfg.email || '';
+      document.getElementById('ji-token').value    = '';  // never pre-fill token
+      document.getElementById('ji-projects').value = (cfg.projects || []).join(', ');
+      document.getElementById('ji-disable-btn').style.display = 'inline-block';
+      document.getElementById('ji-delete-btn').style.display  = 'inline-block';
+      // Highlight button as active
+      document.getElementById('btn-jira').style.borderColor = '#0052cc';
+      document.getElementById('btn-jira').style.color = '#60a5fa';
+    }
+  } catch {}
+}
+
+function closeJiraSettings() {
+  document.getElementById('jira-overlay').style.display = 'none';
+  document.getElementById('ji-test-result').style.display = 'none';
+}
+
+async function jiraTest() {
+  const host     = document.getElementById('ji-host').value.trim();
+  const email    = document.getElementById('ji-email').value.trim();
+  const apiToken = document.getElementById('ji-token').value.trim();
+  const result   = document.getElementById('ji-test-result');
+  result.style.display = 'block';
+  result.innerHTML = '<span style="color:#a0aec0">🔌 Testuji připojení…</span>';
+  try {
+    const r = await fetch('/api/jira/test', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host, email, apiToken })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      const projList = (d.projects || []).slice(0, 8).map(p => `${p.key}`).join(', ');
+      result.innerHTML = `<span style="color:#68d391">✅ Připojeno jako <b>${d.displayName}</b></span><br>
+        <span style="color:#a0aec0;font-size:0.72rem">Projekty: ${projList}${(d.projects||[]).length > 8 ? ' …' : ''}</span>`;
+      // Pre-fill projects if empty
+      if (!document.getElementById('ji-projects').value && d.projects?.length) {
+        document.getElementById('ji-projects').placeholder = d.projects.slice(0, 5).map(p => p.key).join(', ') + ' (vlož klíče)';
+      }
+    } else {
+      result.innerHTML = `<span style="color:#fc8181">❌ ${d.error}</span>`;
+    }
+  } catch (e) {
+    result.innerHTML = `<span style="color:#fc8181">❌ ${e.message}</span>`;
+  }
+}
+
+async function jiraSave() {
+  const host     = document.getElementById('ji-host').value.trim();
+  const email    = document.getElementById('ji-email').value.trim();
+  const apiToken = document.getElementById('ji-token').value.trim();
+  const projects = document.getElementById('ji-projects').value
+    .split(',').map(s => s.trim()).filter(Boolean);
+
+  if (!host || !email || !apiToken) {
+    alert('Vyplň host, email a API token');
+    return;
+  }
+  try {
+    const r = await fetch('/api/jira/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host, email, apiToken, projects, enabled: true })
+    });
+    const d = await r.json();
+    if (d.ok) {
+      closeJiraSettings();
+      document.getElementById('btn-jira').style.borderColor = '#0052cc';
+      document.getElementById('btn-jira').style.color = '#60a5fa';
+      dvRefresh(document.getElementById('btn-refresh'));
+    } else {
+      alert('Chyba: ' + d.error);
+    }
+  } catch (e) { alert('Chyba: ' + e.message); }
+}
+
+async function jiraDisable() {
+  await fetch('/api/jira/disable', { method: 'POST' });
+  closeJiraSettings();
+  document.getElementById('btn-jira').style.borderColor = '';
+  document.getElementById('btn-jira').style.color = '';
+  dvRefresh(document.getElementById('btn-refresh'));
+}
+
+async function jiraDelete() {
+  if (!confirm('Smazat Jira konfiguraci?')) return;
+  await fetch('/api/jira/config', { method: 'DELETE' });
+  closeJiraSettings();
+  document.getElementById('btn-jira').style.borderColor = '';
+  document.getElementById('btn-jira').style.color = '';
+  document.getElementById('ji-host').value = '';
+  document.getElementById('ji-email').value = '';
+  document.getElementById('ji-token').value = '';
+  document.getElementById('ji-projects').value = '';
   dvRefresh(document.getElementById('btn-refresh'));
 }
 </script>
