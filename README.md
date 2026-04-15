@@ -1,6 +1,20 @@
 # DevOps Integrator
 
-Standalone webová aplikace pro přehled Azure DevOps work itemů — bez nutnosti instalace, bez cloudu, vše běží lokálně.
+A local web dashboard that aggregates your tasks from **multiple PM tools** (Azure DevOps, Jira, and more) in one place. No cloud, no accounts — runs on `localhost:4242`.
+
+> 📚 **Full documentation:** [docs/](docs/README.md)
+
+---
+
+## Supported Providers
+
+| Provider | Status |
+|---|---|
+| Azure DevOps | ✅ Stable |
+| Jira Cloud | ✅ Implemented |
+| GitHub Issues | 📋 Planned |
+| GitLab | 📋 Planned |
+| Linear | 📋 Planned |
 
 ## 🤖 Instalace přes AI asistenta (doporučeno)
 

@@ -20,8 +20,8 @@ A single local dashboard showing your tasks from **every PM tool you use** — J
 | Priority | Provider | API | Auth | Status |
 |---|---|---|---|---|
 | 1 | Azure DevOps | REST | PAT | ✅ V1 (stable) |
-| 2 | **Jira** | REST v3 | API Token | 🚧 Next |
-| 3 | GitHub Issues | REST v3 / GraphQL | PAT | 📋 Planned |
+| 2 | **Jira** | REST v3 | API Token | ✅ Implemented |
+| 3 | GitHub Issues | REST v3 / GraphQL | PAT | 📋 Next |
 | 4 | GitLab | REST / GraphQL | PAT | 📋 Planned |
 | 5 | Linear | GraphQL | API Key | 📋 Planned |
 | 6 | Asana | REST | OAuth/PAT | 📋 Backlog |
@@ -29,6 +29,8 @@ A single local dashboard showing your tasks from **every PM tool you use** — J
 | 8 | ClickUp | REST | API Key | 📋 Backlog |
 | 9 | Notion | REST | Bearer | 📋 Backlog |
 | 10 | YouTrack | REST | Bearer | 📋 Backlog |
+
+> 📚 See [docs/](../docs/README.md) for full documentation including provider setup guides and API reference.
 
 ---
 
