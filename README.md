@@ -45,7 +45,7 @@ chmod +x start.sh
 ./start.sh
 ```
 
-Aplikace se automaticky otevře na **http://localhost:4242**.  
+Aplikace se automaticky otevře na **http://localhost:4242**.
 Při prvním spuštění se spustí průvodce nastavením.
 
 > `start.bat` při každém spuštění udělá čistou instalaci závislostí (`node_modules` smaže a `npm install` pustí znovu). Zajistí to kompatibilitu s aktuální verzí Node.js.
@@ -60,7 +60,7 @@ Automaticky ověří:
 - dostupnost serveru na portu 4242
 
 ### Krok 2 — Organizace
-Zadej název organizace z URL:  
+Zadej název organizace z URL:
 `https://dev.azure.com/**{organizace}**/...`
 
 ### Krok 3 — PAT token
@@ -74,7 +74,7 @@ Osobní přístupový token z Azure DevOps.
 Po zadání token aplikace automaticky ověří připojení a načte seznam projektů.
 
 ### Krok 4 — Projekty
-Ze seznamu projektů vyber ty, které chceš sledovat.  
+Ze seznamu projektů vyber ty, které chceš sledovat.
 Pro každý projekt nastav:
 - **Zkratka** — krátký štítek zobrazovaný u itemů (např. `iCE`, `RV`)
 - **Barva** — HEX barva štítku projektu
@@ -145,11 +145,11 @@ Každá sekce má v headeru tlačítko ▼/▶:
 Uchop sekci za handle **⠿** vlevo v headeru a přetáhni ji nad/pod druhou sekci — pořadí se uloží do `localStorage`.
 
 ### 🔁 Auto-refresh
-Data se automaticky obnovují každých **5 minut** (pokud je aplikace otevřená).  
+Data se automaticky obnovují každých **5 minut** (pokud je aplikace otevřená).
 Manuální obnovení: tlačítko **🔄 Obnovit** v pravém horním rohu.
 
 ### ⚙️ Reset konfigurace
-Tlačítko **⚙️ Reset** v hlavičce — znovu spustí průvodce nastavením.  
+Tlačítko **⚙️ Reset** v hlavičce — znovu spustí průvodce nastavením.
 Alternativně: smaž soubor `data/devops-config.json` ručně.
 
 ---
@@ -184,8 +184,8 @@ devops-integrator/
 | `POST` | `/api/devops/notes` | Uložit/smazat poznámku `{ id, text }` |
 
 ### Jak funguje deduplikace itemů
-WIQL queries běží paralelně přes všechny projekty (`Promise.all`).  
-ID se sbírají do `Set` objektů → žádné duplicity i když se item nachází ve více projektech.  
+WIQL queries běží paralelně přes všechny projekty (`Promise.all`).
+ID se sbírají do `Set` objektů → žádné duplicity i když se item nachází ve více projektech.
 Pak jeden hromadný fetch přes `_apis/wit/workitems?ids=...` (cross-project, max 200 itemů).
 
 ### Správné pole priority
@@ -211,5 +211,5 @@ Pak jeden hromadný fetch přes `_apis/wit/workitems?ids=...` (cross-project, ma
 | v18.x | express@5 | ✅ funguje |
 | v24.x | express@4 | ❌ `array-flatten` crash |
 
-> Express 4 závisí na `array-flatten`, jehož `package.json` má chybný `main` entry na Node.js v24.  
+> Express 4 závisí na `array-flatten`, jehož `package.json` má chybný `main` entry na Node.js v24.
 > Express 5 tuto závislost neobsahuje — proto používáme `express@^5`.

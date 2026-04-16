@@ -88,10 +88,10 @@ Rules for the new endpoint:
 
 ### Email must be exact
 
-Atlassian Basic Auth uses `Base64(email:apiToken)`.  
+Atlassian Basic Auth uses `Base64(email:apiToken)`.
 A wrong email returns HTTP 401 with no helpful error message.
 
-✅ Correct: `jakub.wozniak90@gmail.com` (with dot)  
+✅ Correct: `jakub.wozniak90@gmail.com` (with dot)
 ❌ Wrong: `jakubwozniak90@gmail.com` (without dot)
 
 Check your exact email at https://id.atlassian.com/manage-profile

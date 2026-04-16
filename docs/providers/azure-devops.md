@@ -2,7 +2,7 @@
 
 ## Setup
 
-Azure DevOps is configured through the initial setup wizard.  
+Azure DevOps is configured through the initial setup wizard.
 See [Getting Started](../getting-started.md) for the full wizard walkthrough.
 
 ---
@@ -54,13 +54,13 @@ Click **⚙️ Reset** in the app header, or delete `data/devops-config.json` ma
 ## Technical Notes
 
 ### WIQL Queries
-Work item queries run in parallel across all projects (`Promise.all`).  
-IDs are collected into a `Set` — no duplicates even if an item appears in multiple projects.  
+Work item queries run in parallel across all projects (`Promise.all`).
+IDs are collected into a `Set` — no duplicates even if an item appears in multiple projects.
 Then a single batch fetch via `_apis/wit/workitems?ids=...` (cross-project, max 200 items).
 
 ### Correct Priority Field
 Use `Microsoft.VSTS.Common.Priority` — **not** `Microsoft.VSTS.Scheduling.Priority` (that returns 400).
 
 ### Comments API
-`_apis/wit/workItems/{id}/comments?api-version=7.1-preview.3`  
+`_apis/wit/workItems/{id}/comments?api-version=7.1-preview.3`
 The `-preview.3` suffix is required.
