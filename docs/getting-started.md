@@ -50,7 +50,7 @@ chmod +x start.sh
 npm start
 ```
 
-The app opens at **http://localhost:4242**.  
+The app opens at **http://localhost:4242**.
 On first launch the setup wizard runs automatically.
 
 ---

@@ -6,7 +6,14 @@
   "scripts": {
     "start": "node server.js",
     "dev":   "node --watch server.js",
-    "mcp":   "node mcp-server.mjs"
+    "mcp":   "node mcp-server.mjs",
+    "type-check": "node scripts/type-check.mjs",
+    "lint": "node scripts/lint.mjs",
+    "lint:fix": "node scripts/lint.mjs --fix",
+    "format:check": "node scripts/format.mjs --check",
+    "format": "node scripts/format.mjs --write",
+    "test": "node --test mcp-test.mjs",
+    "build": "npm pack --dry-run"
   },
   "dependencies": {
     "express": "^5.0.1",
