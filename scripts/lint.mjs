@@ -2,7 +2,7 @@
 
 import { execSync, spawnSync } from 'node:child_process';
 import path from 'node:path';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 const args = new Set(process.argv.slice(2));
 const shouldFix = args.has('--fix');
@@ -34,14 +34,20 @@ function runTypeCheck() {
     encoding: 'utf8',
     stdio: 'inherit',
   });
-  return result.status === 0;
-}
 
-function stripConflictMarkers(content) {
-  return content
-    .replace(/^<<<<<<<[^\n]*\n/gm, '')
-    .replace(/^=======$\n/gm, '')
-    .replace(/^>>>>>>>[^\n]*\n/gm, '');
+  if (result.error) {
+    return { ok: false, reason: `type-check spawn error: ${result.error.message}` };
+  }
+
+  if (result.signal) {
+    return { ok: false, reason: `type-check terminated by signal: ${result.signal}` };
+  }
+
+  if (result.status !== 0) {
+    return { ok: false, reason: `type-check exited with status ${result.status}` };
+  }
+
+  return { ok: true, reason: null };
 }
 
 const files = getTextFiles(getTrackedFiles());
@@ -52,29 +58,24 @@ for (const filePath of files) {
   const original = readFileSync(filePath, 'utf8');
   if (!conflictRegex.test(original)) continue;
 
-  if (shouldFix) {
-    const updated = stripConflictMarkers(original);
-    writeFileSync(filePath, updated, 'utf8');
-    if (conflictRegex.test(updated)) {
-      conflictIssues.push(filePath);
-    }
-    continue;
-  }
-
   conflictIssues.push(filePath);
 }
 
-const typeCheckOk = runTypeCheck();
+const typeCheck = runTypeCheck();
 
 if (conflictIssues.length > 0) {
   console.error(`Lint failed: conflict markers found in ${conflictIssues.length} file(s).`);
+  if (shouldFix) {
+    console.error('Conflict markers were not auto-fixed. Resolve merge conflicts manually.');
+  }
   for (const filePath of conflictIssues) {
     console.error(`- ${filePath}`);
   }
   process.exit(1);
 }
 
-if (!typeCheckOk) {
+if (!typeCheck.ok) {
+  console.error(`Lint failed: ${typeCheck.reason}`);
   process.exit(1);
 }
 
