@@ -1,0 +1,19 @@
+# Normalize line endings for all text files
+* text=auto
+
+# Windows batch files must have CRLF on checkout
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Unix scripts use LF
+*.sh text eol=lf
+
+# Source files use LF
+*.js   text eol=lf
+*.mjs  text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.css  text eol=lf
+*.html text eol=lf

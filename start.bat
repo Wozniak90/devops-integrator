@@ -1,63 +1,62 @@
 @echo off
 setlocal enabledelayedexpansion
-chcp 65001 >nul
 
-:: Přepni do složky kde leží tento .bat soubor (funguje odkudkoliv)
+:: Change to script directory (works from any location)
 cd /d "%~dp0"
 
 echo.
-echo  ╔══════════════════════════════════════════╗
-echo  ║       DevOps Integrator — spouštěč      ║
-echo  ╚══════════════════════════════════════════╝
+echo  ============================================
+echo   DevOps Integrator - Launcher
+echo  ============================================
 echo.
 
-:: Kontrola Node.js
+:: Check Node.js
 node --version >nul 2>&1
 if %errorlevel% neq 0 (
-    echo  ❌ Node.js NENÍ nainstalován!
+    echo  [ERR] Node.js is not installed!
     echo.
-    echo  Node.js je potřeba pro spuštění aplikace.
-    echo  Otevírám stránku pro stažení...
+    echo  Node.js is required to run this application.
+    echo  Opening download page...
     echo.
     start https://nodejs.org/en/download/
-    echo  Po dokončení instalace Node.js zavři toto okno
-    echo  a spusť start.bat znovu.
+    echo  After installing Node.js, close this window
+    echo  and run start.bat again.
     echo.
     pause
     exit /b 1
 )
 
 for /f "tokens=*" %%v in ('node --version') do set NODE_VER=%%v
-echo  ✅ Node.js %NODE_VER% nalezen
+echo  [OK] Node.js %NODE_VER% found
 
-:: Vždy clean install — zaručí kompatibilitu s aktuální verzí Node.js
-echo  🧹 Čistím node_modules pro čistou instalaci...
-if exist "node_modules" rmdir /s /q "node_modules"
-if exist "package-lock.json" del "package-lock.json"
-
-echo  📦 Instaluji závislosti (npm install)...
-call npm install
-if %errorlevel% neq 0 (
-    echo.
-    echo  ❌ npm install selhal. Zkontroluj připojení k internetu.
-    pause
-    exit /b 1
-)
+:: Install dependencies only when missing (incremental - avoids 60s reinstall on every start)
 if not exist "node_modules\express" (
-    echo.
-    echo  ❌ Balíčky se nenainstalovaly správně. Zkus spustit ručně:
-    echo     npm install
-    pause
-    exit /b 1
+    echo  [INFO] Installing dependencies...
+    call npm install
+    if %errorlevel% neq 0 (
+        echo.
+        echo  [ERR] npm install failed. Check your internet connection.
+        pause
+        exit /b 1
+    )
+    if not exist "node_modules\express" (
+        echo.
+        echo  [ERR] Packages did not install correctly. Try running manually:
+        echo     npm install
+        pause
+        exit /b 1
+    )
+    echo  [OK] Dependencies installed
+) else (
+    echo  [OK] Dependencies already present
 )
-echo  ✅ Závislosti OK
 
 echo.
-echo  🚀 Spouštím server na http://localhost:4242
-echo  Pro ukončení stiskni Ctrl+C
+echo  [INFO] Starting server at http://localhost:4242
+echo  Press Ctrl+C to stop.
 echo.
 
-:: Otevřít prohlížeč po krátké prodlevě
+:: Open browser after short delay
 start /b cmd /c "timeout /t 2 >nul && start http://localhost:4242"
 
 node server.js
