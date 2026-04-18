@@ -34,7 +34,8 @@ devops-integrator/
 ├── docs/                        # ← You are here
 └── data/                        # gitignored
     ├── devops-config.json       # Config (Azure + Jira + AI settings)
-    └── notes.json               # Personal item notes
+    ├── notes.json               # Personal item notes
+    └── provider-audit.log       # JSONL audit trail for provider config changes
 ```
 
 ---
@@ -60,6 +61,24 @@ module.exports = {
   validateConfig(config) → { valid: boolean, error?: string }
 };
 ```
+
+---
+
+## Provider Management Layer
+
+`server.js` now exposes generic provider-management endpoints under `/api/providers/*`.
+Legacy Jira routes (`/api/jira/*`) are kept as backward-compatible wrappers for the existing frontend.
+
+Flow:
+
+1. Route validates `providerId` against the provider registry.
+2. Config helpers read/write both schemas for migration safety:
+   - current: top-level `jira`
+   - migration-safe: `providers.jira`
+3. Secret fields are masked in read responses.
+4. Mutating operations append JSON lines to `data/provider-audit.log`.
+
+This keeps feature #5 compatible with the ongoing config-migration work from feature #3 without requiring a full runtime migration.
 
 ---
 
@@ -106,6 +125,15 @@ Stored in `data/devops-config.json`:
     "email": "user@company.com",
     "apiToken": "...",
     "projects": ["ABC", "XYZ"]
+  },
+  "providers": {
+    "jira": {
+      "enabled": true,
+      "host": "https://mycompany.atlassian.net",
+      "email": "user@company.com",
+      "apiToken": "...",
+      "projects": ["ABC", "XYZ"]
+    }
   },
   "ai": {
     "priorityWeights": {

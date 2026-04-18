@@ -8,9 +8,11 @@ const DATA_DIR     = path.join(__dirname, 'data');
 const CONFIG_PATH  = path.join(DATA_DIR, 'devops-config.json');
 const NOTES_PATH     = path.join(DATA_DIR, 'devops-notes.json');
 const AI_CONFIG_PATH = path.join(DATA_DIR, 'ai-config.json');
+const PROVIDER_AUDIT_PATH = path.join(DATA_DIR, 'provider-audit.log');
 
 // Jira provider (V2 architecture)
 const jiraProvider = require('./V2/providers/jira');
+const { ALL_PROVIDERS } = require('./V2/providers');
 
 const app = express();
 app.use(express.json());
@@ -335,22 +337,210 @@ function jiraItemToV1(item, aiCfg) {
   };
 }
 
-// ── Jira config helpers ────────────────────────────────────────────────────
-function readJiraConfig() {
-  const cfg = readConfig();
-  return cfg?.jira || null;
+// ── Provider management helpers ────────────────────────────────────────────
+const PROVIDER_REGISTRY = ALL_PROVIDERS.reduce((acc, provider) => {
+  if (provider?.id) acc[provider.id] = provider;
+  return acc;
+}, {});
+
+const MANAGED_PROVIDER_DEFS = {
+  jira: {
+    secretFields: ['apiToken'],
+    testConnection: testJiraConnection,
+  },
+};
+
+function getManagedProvider(providerId) {
+  const provider = PROVIDER_REGISTRY[providerId];
+  const def = MANAGED_PROVIDER_DEFS[providerId];
+  if (!provider || !def) return null;
+  return { providerId, provider, ...def };
+}
+
+function readProvidersConfigMap(cfg) {
+  if (!cfg || typeof cfg !== 'object' || Array.isArray(cfg)) return {};
+  const map = cfg.providers;
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return {};
+  return map;
+}
+
+function readProviderConfig(providerId, cfgOverride = null) {
+  const cfg = cfgOverride || readConfig() || {};
+  const providers = readProvidersConfigMap(cfg);
+  if (Object.prototype.hasOwnProperty.call(providers, providerId)) {
+    return providers[providerId] || null;
+  }
+  if (providerId === 'jira') return cfg.jira || null;
+  return null;
+}
+
+function writeProviderConfig(providerId, providerCfg) {
+  const cfg = readConfig() || {};
+  cfg.providers = { ...readProvidersConfigMap(cfg) };
+  if (providerCfg === null) {
+    delete cfg.providers[providerId];
+    if (providerId === 'jira') delete cfg.jira;
+  } else {
+    cfg.providers[providerId] = providerCfg;
+    if (providerId === 'jira') cfg.jira = providerCfg;
+  }
+  writeConfig(cfg);
+}
+
+function appendProviderAuditEvent(event) {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    const payload = { timestamp: new Date().toISOString(), ...event };
+    fs.appendFileSync(PROVIDER_AUDIT_PATH, `${JSON.stringify(payload)}\n`, 'utf8');
+  } catch (e) {
+    console.error('[providers] audit append failed:', e.message);
+  }
+}
+
+function maskProviderSecrets(providerId, config) {
+  if (!config) return null;
+  const managed = getManagedProvider(providerId);
+  const secretFields = managed?.secretFields || [];
+  const safe = { ...config };
+  for (const field of secretFields) {
+    safe[field] = safe[field] ? '***' : '';
+  }
+  return safe;
+}
+
+function readJiraConfig(cfgOverride = null) {
+  return readProviderConfig('jira', cfgOverride);
 }
 
 function writeJiraConfig(jiraCfg) {
-  const cfg = readConfig() || {};
-  cfg.jira = jiraCfg;
-  writeConfig(cfg);
+  writeProviderConfig('jira', jiraCfg);
+}
+
+function resolveProviderPayload(providerId, body, existingConfig, merge) {
+  const managed = getManagedProvider(providerId);
+  if (!managed) {
+    return {
+      ok: false,
+      status: 404,
+      error: `Unknown provider '${providerId}'`,
+      code: 'PROVIDER_NOT_FOUND',
+    };
+  }
+  const payload = body && typeof body === 'object' ? { ...body } : {};
+  const next = merge ? { ...(existingConfig || {}), ...payload } : payload;
+  if (payload.keepToken) {
+    for (const field of managed.secretFields) {
+      if (!next[field]) next[field] = existingConfig?.[field] || '';
+    }
+  }
+  delete next.keepToken;
+  if (next.enabled === undefined) next.enabled = true;
+
+  const validation = managed.provider.validateConfig(next);
+  if (!validation.valid) {
+    return {
+      ok: false,
+      status: 400,
+      error: validation.error,
+      code: 'INVALID_PROVIDER_CONFIG',
+    };
+  }
+  return { ok: true, config: next, managed };
+}
+
+function persistProviderConfig(providerId, config, action, changedKeys = []) {
+  writeProviderConfig(providerId, config);
+  appendProviderAuditEvent({
+    event: action,
+    providerId,
+    changedKeys,
+  });
+  _cache = null;
+}
+
+function removeProviderConfig(providerId) {
+  writeProviderConfig(providerId, null);
+  appendProviderAuditEvent({
+    event: 'provider.config.delete',
+    providerId,
+  });
+  _cache = null;
+}
+
+function sendProviderError(res, status, error, code) {
+  const payload = code ? { error, code } : { error };
+  return res.status(status).json(payload);
+}
+
+async function testJiraConnection(config) {
+  const { host, email, apiToken } = config;
+  const auth = Buffer.from(`${email}:${apiToken}`).toString('base64');
+
+  const meResponse = await fetch(new URL('/rest/api/3/myself', host).toString(), {
+    headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' }
+  });
+  if (!meResponse.ok) {
+    return {
+      ok: false,
+      status: 401,
+      error: `Ověření selhalo (${meResponse.status}). Zkontroluj host, email a API token.`,
+      code: 'PROVIDER_AUTH_FAILED',
+    };
+  }
+
+  const me = await meResponse.json();
+  const projectsResponse = await fetch(new URL('/rest/api/3/project?maxResults=50', host).toString(), {
+    headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' }
+  });
+  const projects = projectsResponse.ok ? await projectsResponse.json() : [];
+
+  return {
+    ok: true,
+    data: {
+      displayName: me.displayName || me.name || email,
+      projects: (Array.isArray(projects) ? projects : []).map(p => ({ key: p.key, name: p.name })),
+    },
+  };
+}
+
+async function runProviderConnectionTest(providerId, body) {
+  const managed = getManagedProvider(providerId);
+  if (!managed) {
+    return {
+      ok: false,
+      status: 404,
+      error: `Unknown provider '${providerId}'`,
+      code: 'PROVIDER_NOT_FOUND',
+    };
+  }
+
+  const candidate = body && typeof body === 'object' ? body : {};
+  const validation = managed.provider.validateConfig(candidate);
+  if (!validation.valid) {
+    return {
+      ok: false,
+      status: 400,
+      error: validation.error,
+      code: 'INVALID_PROVIDER_CONFIG',
+    };
+  }
+
+  try {
+    return await managed.testConnection(candidate);
+  } catch (e) {
+    return {
+      ok: false,
+      status: 500,
+      error: `Chyba připojení: ${e.message}`,
+      code: 'PROVIDER_TEST_FAILED',
+    };
+  }
 }
 
 // ── fetchItemsWithJira: merged Azure + Jira ───────────────────────────────
 async function fetchAllItems(cfg, forceRefresh = false) {
   const azureData = await fetchItems(cfg, forceRefresh);
-  const jiraCfg   = cfg.jira;
+  const jiraCfg   = readJiraConfig(cfg);
 
   if (!jiraCfg?.enabled) return azureData;
 
@@ -457,85 +647,142 @@ app.post('/api/setup/reset', (req, res) => {
   res.json({ ok: true });
 });
 
-// ── Jira endpoints ────────────────────────────────────────────────────────
+// ── Provider management endpoints ─────────────────────────────────────────
+
+// GET /api/providers — list manageable providers
+app.get('/api/providers', (req, res) => {
+  const providers = Object.keys(MANAGED_PROVIDER_DEFS).map(providerId => {
+    const managed = getManagedProvider(providerId);
+    const config = readProviderConfig(providerId);
+    return {
+      id: providerId,
+      name: managed?.provider?.name || providerId,
+      icon: managed?.provider?.icon || '',
+      configured: !!config,
+      enabled: config?.enabled !== false,
+    };
+  });
+  res.json({ ok: true, providers });
+});
+
+// GET /api/providers/:providerId/config — return provider config (secrets masked)
+app.get('/api/providers/:providerId/config', (req, res) => {
+  const { providerId } = req.params;
+  const managed = getManagedProvider(providerId);
+  if (!managed) return sendProviderError(res, 404, `Unknown provider '${providerId}'`, 'PROVIDER_NOT_FOUND');
+
+  const config = readProviderConfig(providerId);
+  if (!config) return res.json({ ok: true, providerId, configured: false });
+  return res.json({
+    ok: true,
+    providerId,
+    configured: true,
+    config: maskProviderSecrets(providerId, config),
+  });
+});
+
+// POST /api/providers/:providerId/config — create/replace provider config
+app.post('/api/providers/:providerId/config', (req, res) => {
+  const { providerId } = req.params;
+  const existing = readProviderConfig(providerId);
+  const resolved = resolveProviderPayload(providerId, req.body, existing, false);
+  if (!resolved.ok) return sendProviderError(res, resolved.status, resolved.error, resolved.code);
+
+  const normalized = {
+    ...resolved.config,
+    projects: resolved.config.projects || [],
+    projectColors: resolved.config.projectColors || {},
+  };
+  const action = existing ? 'provider.config.update' : 'provider.config.create';
+  const changedKeys = Object.keys(req.body || {}).filter(k => k !== 'keepToken');
+  persistProviderConfig(providerId, normalized, action, changedKeys);
+  return res.json({ ok: true, providerId, configured: true });
+});
+
+// PATCH /api/providers/:providerId/config — partial update provider config
+app.patch('/api/providers/:providerId/config', (req, res) => {
+  const { providerId } = req.params;
+  const existing = readProviderConfig(providerId);
+  if (!existing) {
+    return sendProviderError(res, 404, `Provider '${providerId}' is not configured`, 'PROVIDER_CONFIG_NOT_FOUND');
+  }
+
+  const resolved = resolveProviderPayload(providerId, req.body, existing, true);
+  if (!resolved.ok) return sendProviderError(res, resolved.status, resolved.error, resolved.code);
+
+  const normalized = {
+    ...resolved.config,
+    projects: resolved.config.projects || [],
+    projectColors: resolved.config.projectColors || {},
+  };
+  const changedKeys = Object.keys(req.body || {}).filter(k => k !== 'keepToken');
+  persistProviderConfig(providerId, normalized, 'provider.config.update', changedKeys);
+  return res.json({ ok: true, providerId, configured: true });
+});
+
+// DELETE /api/providers/:providerId/config — remove provider config
+app.delete('/api/providers/:providerId/config', (req, res) => {
+  const { providerId } = req.params;
+  const managed = getManagedProvider(providerId);
+  if (!managed) return sendProviderError(res, 404, `Unknown provider '${providerId}'`, 'PROVIDER_NOT_FOUND');
+  removeProviderConfig(providerId);
+  return res.json({ ok: true, providerId });
+});
+
+// POST /api/providers/:providerId/test — test provider credentials
+app.post('/api/providers/:providerId/test', async (req, res) => {
+  const { providerId } = req.params;
+  const result = await runProviderConnectionTest(providerId, req.body);
+  if (!result.ok) return sendProviderError(res, result.status, result.error, result.code);
+  return res.json({ ok: true, providerId, ...result.data });
+});
+
+// ── Jira endpoint compatibility wrappers ──────────────────────────────────
 
 // GET /api/jira/config — return Jira config (token masked)
 app.get('/api/jira/config', (req, res) => {
   const jira = readJiraConfig();
   if (!jira) return res.json({ configured: false });
-  const { apiToken, ...safe } = jira;
-  res.json({ configured: true, ...safe, apiToken: apiToken ? '***' : '' });
+  return res.json({ configured: true, ...maskProviderSecrets('jira', jira) });
 });
 
 // POST /api/jira/test — verify Jira credentials
 app.post('/api/jira/test', async (req, res) => {
-  const { host, email, apiToken } = req.body || {};
-  const validation = jiraProvider.validateConfig({ host, email, apiToken });
-  if (!validation.valid) return res.status(400).json({ error: validation.error });
-
-  try {
-    // Try fetching current user to validate credentials
-    const url  = new URL('/rest/api/3/myself', host);
-    const auth = Buffer.from(`${email}:${apiToken}`).toString('base64');
-    const r = await fetch(url.toString(), {
-      headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' }
-    });
-    if (!r.ok) {
-      const t = await r.text();
-      return res.status(401).json({ error: `Ověření selhalo (${r.status}). Zkontroluj host, email a API token.` });
-    }
-    const me = await r.json();
-    // Also fetch project list
-    const pr = await fetch(new URL('/rest/api/3/project?maxResults=50', host).toString(), {
-      headers: { Authorization: `Basic ${auth}`, Accept: 'application/json' }
-    });
-    const projects = pr.ok ? await pr.json() : [];
-    res.json({
-      ok: true,
-      displayName: me.displayName || me.name || email,
-      projects: (Array.isArray(projects) ? projects : []).map(p => ({ key: p.key, name: p.name }))
-    });
-  } catch (e) {
-    res.status(500).json({ error: `Chyba připojení: ${e.message}` });
-  }
+  const result = await runProviderConnectionTest('jira', req.body);
+  if (!result.ok) return res.status(result.status).json({ error: result.error });
+  return res.json({ ok: true, ...result.data });
 });
 
 // POST /api/jira/save — save Jira config
 app.post('/api/jira/save', (req, res) => {
-  const { host, email, apiToken, keepToken, projects, projectColors, enabled } = req.body || {};
+  const existing = readJiraConfig();
+  const resolved = resolveProviderPayload('jira', req.body, existing, false);
+  if (!resolved.ok) return res.status(resolved.status).json({ error: resolved.error });
 
-  // If keepToken=true, use existing stored token
-  const resolvedToken = keepToken ? (readJiraConfig()?.apiToken || '') : apiToken;
-
-  const validation = jiraProvider.validateConfig({ host, email, apiToken: resolvedToken });
-  if (!validation.valid) return res.status(400).json({ error: validation.error });
-
-  writeJiraConfig({
-    enabled: enabled !== false,
-    host,
-    email,
-    apiToken: resolvedToken,
-    projects: projects || [],
-    projectColors: projectColors || {}
-  });
-  _cache = null;
-  res.json({ ok: true });
+  const normalized = {
+    ...resolved.config,
+    projects: resolved.config.projects || [],
+    projectColors: resolved.config.projectColors || {},
+  };
+  const action = existing ? 'provider.config.update' : 'provider.config.create';
+  const changedKeys = Object.keys(req.body || {}).filter(k => k !== 'keepToken');
+  persistProviderConfig('jira', normalized, action, changedKeys);
+  return res.json({ ok: true });
 });
 
 // POST /api/jira/disable — disable without deleting credentials
 app.post('/api/jira/disable', (req, res) => {
   const jira = readJiraConfig();
-  if (jira) { jira.enabled = false; writeJiraConfig(jira); }
-  _cache = null;
-  res.json({ ok: true });
+  if (jira) {
+    persistProviderConfig('jira', { ...jira, enabled: false }, 'provider.config.disable', ['enabled']);
+  }
+  return res.json({ ok: true });
 });
 
 // DELETE /api/jira/config — remove Jira config entirely
 app.delete('/api/jira/config', (req, res) => {
-  const cfg = readConfig();
-  if (cfg) { delete cfg.jira; writeConfig(cfg); }
-  _cache = null;
-  res.json({ ok: true });
+  removeProviderConfig('jira');
+  return res.json({ ok: true });
 });
 
 // ── DevOps endpoints ──────────────────────────────────────────────────────
