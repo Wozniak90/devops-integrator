@@ -34,49 +34,111 @@ Send `"text": ""` to delete the note.
 
 ---
 
-## Jira Endpoints
+## Provider Management Endpoints (Generic)
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/api/jira/config` | Jira config (token masked as `"***"`) |
-| `POST` | `/api/jira/save` | Save Jira config |
-| `POST` | `/api/jira/test` | Test Jira credentials |
-| `POST` | `/api/jira/disable` | Temporarily disable Jira |
-| `DELETE` | `/api/jira/config` | Remove Jira config entirely |
+| `GET` | `/api/providers` | List manageable providers and configuration status |
+| `GET` | `/api/providers/:providerId/config` | Read provider config (secrets masked) |
+| `POST` | `/api/providers/:providerId/config` | Create or replace provider config |
+| `PATCH` | `/api/providers/:providerId/config` | Update provider config partially |
+| `DELETE` | `/api/providers/:providerId/config` | Remove provider config |
+| `POST` | `/api/providers/:providerId/test` | Validate provider credentials/connectivity |
 
-### `POST /api/jira/save` body
+### `GET /api/providers` response
+```json
+{
+  "ok": true,
+  "providers": [
+    {
+      "id": "jira",
+      "name": "Jira",
+      "icon": "🟦",
+      "configured": true,
+      "enabled": true
+    }
+  ]
+}
+```
+
+### `POST /api/providers/jira/config` body (create/replace)
 ```json
 {
   "host": "https://mycompany.atlassian.net",
   "email": "user@company.com",
   "apiToken": "my-token",
   "projects": ["APP", "INT"],
-  "keepToken": false
+  "projectColors": { "APP": "#0052cc" },
+  "enabled": true
 }
 ```
 
-Set `keepToken: true` (and omit or leave `apiToken` empty) to preserve the existing stored token when updating other fields.
-
-### `POST /api/jira/test` body
+### `PATCH /api/providers/jira/config` body (partial update)
 ```json
 {
   "host": "https://mycompany.atlassian.net",
-  "email": "user@company.com",
-  "apiToken": "my-token"
+  "projects": ["APP", "INT"],
+  "keepToken": true
 }
 ```
 
-### `POST /api/jira/test` response (success)
+Set `keepToken: true` to preserve the currently stored provider secret(s) when omitting token fields.
+
+### `GET /api/providers/jira/config` response (configured)
 ```json
 {
   "ok": true,
-  "user": "Jakub Wozniak",
+  "providerId": "jira",
+  "configured": true,
+  "config": {
+    "enabled": true,
+    "host": "https://mycompany.atlassian.net",
+    "email": "user@company.com",
+    "apiToken": "***",
+    "projects": ["APP", "INT"],
+    "projectColors": { "APP": "#0052cc" }
+  }
+}
+```
+
+### `POST /api/providers/jira/test` response (success)
+```json
+{
+  "ok": true,
+  "providerId": "jira",
+  "displayName": "Jakub Wozniak",
   "projects": [
     { "key": "APP", "name": "Demo App" },
     { "key": "INT", "name": "Internal Tools" }
   ]
 }
 ```
+
+### Error response contract
+```json
+{ "error": "Unknown provider 'foo'", "code": "PROVIDER_NOT_FOUND" }
+```
+
+Common status codes:
+
+- `400` invalid provider config payload (`INVALID_PROVIDER_CONFIG`)
+- `401` provider authentication failed (`PROVIDER_AUTH_FAILED`)
+- `404` provider or provider config not found (`PROVIDER_NOT_FOUND`, `PROVIDER_CONFIG_NOT_FOUND`)
+- `500` provider connectivity/runtime error (`PROVIDER_TEST_FAILED`)
+
+---
+
+## Jira Endpoints (Backward-Compatible Aliases)
+
+The following endpoints are preserved for the existing UI and route internally through the generic provider-management layer:
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/jira/config` | Alias for Jira config read (token masked) |
+| `POST` | `/api/jira/save` | Alias for Jira config save (`keepToken` supported) |
+| `POST` | `/api/jira/test` | Alias for Jira credential test |
+| `POST` | `/api/jira/disable` | Disable Jira config without deleting credentials |
+| `DELETE` | `/api/jira/config` | Alias for Jira config delete |
 
 ---
 
